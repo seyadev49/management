@@ -7,14 +7,14 @@ import {
   Building2,
   Users,
   BarChart3,
-  CreditCard,
-  Plus,
   Menu,
   X,
   LogOut,
   Moon,
   Sun,
-  Shield
+  Shield,
+  Plus,
+  CreditCard
 } from 'lucide-react';
 
 interface LayoutProps {

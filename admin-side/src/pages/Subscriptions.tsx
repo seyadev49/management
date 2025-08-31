@@ -12,7 +12,6 @@ import {
   Search,
   Edit,
   Ban,
-  RotateCcw
 } from 'lucide-react';
 
 interface BillingOverview {
@@ -374,7 +373,6 @@ const Subscriptions: React.FC = () => {
                       disabled={actionLoading === `upgrade-${subscription.organization_id}`}
                       className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50"
                       title="Edit Subscription"
-                      title="Edit Subscription"
                     >
                       <Edit className="h-4 w-4" />
                     </button>
@@ -383,7 +381,6 @@ const Subscriptions: React.FC = () => {
                         onClick={() => handleCancel(subscription.organization_id)}
                         disabled={actionLoading === `cancel-${subscription.organization_id}`}
                         className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50"
-                        title="Cancel Subscription"
                         title="Cancel Subscription"
                       >
                         <Ban className="h-4 w-4" />
