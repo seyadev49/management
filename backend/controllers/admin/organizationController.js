@@ -119,7 +119,7 @@ const createOrganization = async (req, res) => {
   }
 };
 
-// Get all organizations with details
+// Get all organizations with details - FIXED RESPONSE STRUCTURE
 const getAllOrganizations = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -198,16 +198,14 @@ const getAllOrganizations = async (req, res) => {
     const [countResult] = await db.execute(countQuery, countParams);
     const total = countResult[0].total;
     
+    // Return properly formatted response
     res.json({
-      success: true,
-      data: {
-        organizations,
-        pagination: {
-          page,
-          limit,
-          total,
-          pages: Math.ceil(total / limit)
-        }
+      organizations, // Direct array without data wrapper
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
       }
     });
 
@@ -221,7 +219,7 @@ const getAllOrganizations = async (req, res) => {
   }
 };
 
-// Get detailed organization info with users
+// Get detailed organization info with users and activity logs
 const getOrganizationDetails = async (req, res) => {
   try {
     const { orgId } = req.params;
@@ -261,7 +259,7 @@ const getOrganizationDetails = async (req, res) => {
       ORDER BY created_at DESC
     `, [orgId]);
 
-    // Get recent activity logs
+    // Get recent activity logs - FIXED: Properly filter by organization
     const [activityLogs] = await db.execute(`
       SELECT 
         al.action, al.details, al.created_at, u.full_name AS user_name
@@ -277,7 +275,7 @@ const getOrganizationDetails = async (req, res) => {
       data: {
         organization: orgData[0],
         users,
-        activityLogs
+        activityLogs: activityLogs || [] // Ensure it's always an array
       }
     });
   } catch (error) {

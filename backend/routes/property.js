@@ -7,7 +7,7 @@ const {
   updateProperty,
   deleteProperty
 } = require('../controllers/propertyController');
-const { authenticateToken, authorize } = require('../middleware/auth');
+const { authenticateToken, authorize,logActivity } = require('../middleware/auth');
 const { checkPlanLimit } = require('../middleware/planLimits');
 
 const router = express.Router();
@@ -23,6 +23,6 @@ router.post('/', authenticateToken, authorize('landlord', 'admin'), checkPlanLim
 router.get('/', authenticateToken, getProperties);
 router.get('/:id', authenticateToken, getPropertyById);
 router.put('/:id', authenticateToken, authorize('landlord', 'admin'), propertyValidation, updateProperty);
-router.delete('/:id', authenticateToken, authorize('landlord', 'admin'), deleteProperty);
+router.delete('/:id', authenticateToken, authorize('landlord', 'admin'),  logActivity('DELETE_USER'), deleteProperty);
 
 module.exports = router;

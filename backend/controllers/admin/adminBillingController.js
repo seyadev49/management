@@ -1,4 +1,3 @@
-
 const db = require('../../db/connection');
 
 // Get billing overview
@@ -292,10 +291,191 @@ const generateBillingReport = async (req, res) => {
   }
 };
 
+// Verify subscription (approve/reject)
+const verifySubscription = async (req, res) => {
+  try {
+    const { subscriptionId } = req.params;
+    const { action, reason } = req.body; // action: 'approve' | 'reject'
+
+    // Get subscription details
+    const [subscriptions] = await db.execute(`
+      SELECT sh.*, o.name as organization_name
+      FROM subscription_history sh
+      JOIN organizations o ON sh.organization_id = o.id
+      WHERE sh.id = ?
+    `, [subscriptionId]);
+
+    if (subscriptions.length === 0) {
+      return res.status(404).json({ message: 'Subscription not found' });
+    }
+
+    const subscription = subscriptions[0];
+
+    if (action === 'approve') {
+      // Calculate end date based on billing cycle
+      const startDate = new Date();
+      let endDate = new Date(startDate);
+      
+      switch (subscription.billing_cycle) {
+        case 'monthly':
+          endDate.setMonth(endDate.getMonth() + 1);
+          break;
+        case 'annual':
+          endDate.setFullYear(endDate.getFullYear() + 1);
+          break;
+        case 'semi-annual':
+          endDate.setMonth(endDate.getMonth() + 6);
+          break;
+        default:
+          endDate.setMonth(endDate.getMonth() + 1);
+      }
+
+      // Update subscription status to active
+      await db.execute(`
+        UPDATE subscription_history 
+        SET status = 'active', start_date = CURDATE(), end_date = ?
+        WHERE id = ?
+      `, [endDate, subscriptionId]);
+
+      // Update organization subscription status
+      await db.execute(`
+        UPDATE organizations 
+        SET subscription_status = 'active', 
+            subscription_plan = ?,
+            subscription_price = ?,
+            billing_cycle = ?,
+            next_renewal_date = ?
+        WHERE id = ?
+      `, [
+        subscription.plan_id, 
+        subscription.amount, 
+        subscription.billing_cycle, 
+        endDate, 
+        subscription.organization_id
+      ]);
+
+      // Log the action
+      await db.execute(`
+        INSERT INTO admin_actions (admin_id, action, target_type, target_id, details)
+        VALUES (?, 'subscription_approved', 'organization', ?, ?)
+      `, [req.user.id, subscription.organization_id, JSON.stringify({ 
+        subscription_id: subscriptionId,
+        plan: subscription.plan_id,
+        amount: subscription.amount
+      })]);
+
+      res.json({ message: 'Subscription approved successfully' });
+    } else if (action === 'reject') {
+      // Update subscription status to rejected
+      await db.execute(`
+        UPDATE subscription_history 
+        SET status = 'rejected'
+        WHERE id = ?
+      `, [subscriptionId]);
+
+      // Log the action
+      await db.execute(`
+        INSERT INTO admin_actions (admin_id, action, target_type, target_id, details)
+        VALUES (?, 'subscription_rejected', 'organization', ?, ?)
+      `, [req.user.id, subscription.organization_id, JSON.stringify({ 
+        subscription_id: subscriptionId,
+        reason: reason
+      })]);
+
+      res.json({ message: 'Subscription rejected successfully' });
+    } else {
+      return res.status(400).json({ message: 'Invalid action' });
+    }
+  } catch (error) {
+    console.error('Verify subscription error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+// Download receipt file
+const downloadReceipt = async (req, res) => {
+  try {
+    const { receiptPath } = req.query;
+    const fs = require('fs');
+    const path = require('path');
+
+    // Check if user is authenticated - this is the critical fix
+    if (!req.user) {
+      // If no user object, try to parse token manually
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ message: 'Access token required' });
+      }
+      
+      // You could add token validation here if needed
+      // But since you're already using authenticateToken middleware, 
+      // this should work if the middleware is properly applied
+    }
+
+    if (!receiptPath) {
+      return res.status(400).json({ message: 'Receipt path is required' });
+    }
+
+    // Validate that the receipt path is safe (prevent directory traversal)
+    if (receiptPath.includes('../') || receiptPath.includes('..\\')) {
+      return res.status(400).json({ message: 'Invalid receipt path' });
+    }
+
+    // Construct full file path
+    let fullPath;
+    if (path.isAbsolute(receiptPath)) {
+      fullPath = receiptPath;
+    } else {
+      const cleanPath = receiptPath.replace(/^\/+/, '');
+      fullPath = path.join(__dirname, '../../', cleanPath);
+    }
+
+    console.log('Attempting to serve file from:', fullPath);
+
+    // Check if file exists
+    if (!fs.existsSync(fullPath)) {
+      console.log('File not found at:', fullPath);
+      return res.status(404).json({ message: 'Receipt file not found' });
+    }
+
+    // Get file extension to determine content type
+    const ext = path.extname(fullPath).toLowerCase();
+    let contentType = 'application/octet-stream';
+    
+    if (ext === '.pdf') {
+      contentType = 'application/pdf';
+    } else if (['.jpg', '.jpeg'].includes(ext)) {
+      contentType = 'image/jpeg';
+    } else if (ext === '.png') {
+      contentType = 'image/png';
+    } else if (ext === '.gif') {
+      contentType = 'image/gif';
+    }
+
+    // Set appropriate headers
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', 'inline; filename="' + path.basename(fullPath) + '"');
+    res.setHeader('Cache-Control', 'no-cache');
+    
+    // Stream the file
+    const fileStream = fs.createReadStream(fullPath);
+    fileStream.pipe(res);
+    
+    // Handle errors
+    fileStream.on('error', (err) => {
+      console.error('File stream error:', err);
+      res.status(500).json({ message: 'Error reading file' });
+    });
+  } catch (error) {
+    console.error('Download receipt error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
 module.exports = {
   getBillingOverview,
   getAllSubscriptions,
   getOrganizationBilling,
   updateOrganizationSubscription,
-  generateBillingReport
+  generateBillingReport,
+  verifySubscription,
+  downloadReceipt
 };

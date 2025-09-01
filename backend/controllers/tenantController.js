@@ -115,6 +115,7 @@ const getTenantById = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
 const getSecurityDeposit = (req, res) => {
   const tenantId = req.params.id; // this is tenants.id
 
@@ -142,6 +143,7 @@ const getSecurityDeposit = (req, res) => {
       return res.status(500).json({ message: 'Database error' });
     });
 };
+
 
 const updateTenant = async (req, res) => {
   try {

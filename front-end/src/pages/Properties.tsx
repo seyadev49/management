@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useApiWithLimitCheck } from '../hooks/useApiWithLimitCheck';
 import { Plus, Building2 } from 'lucide-react';
 import { Property, Unit, Tenant } from '../features/properties/types';
 import { PropertyFormModal } from '../features/properties/components/PropertyFormModal';
@@ -13,7 +12,6 @@ const API_BASE_URL = 'http://localhost:5000/api';
 
 const Properties: React.FC = () => {
     const { token } = useAuth();
-    const { apiCall } = useApiWithLimitCheck();
 
     // Component State
     const [properties, setProperties] = useState<Property[]>([]);
@@ -23,6 +21,7 @@ const Properties: React.FC = () => {
     const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
     const [loading, setLoading] = useState(true);
     const [formLoading, setFormLoading] = useState(false);
+    const [isUnitsLoading, setIsUnitsLoading] = useState(false);
 
     // Modal Visibility State
     const [isPropertyModalOpen, setPropertyModalOpen] = useState(false);
@@ -92,9 +91,9 @@ const Properties: React.FC = () => {
 
     const fetchTenants = useCallback(async () => {
         try {
-            const response = await apiCall(() => fetch(`${API_BASE_URL}/tenants`, { 
+            const response = await fetch(`${API_BASE_URL}/tenants`, { 
                 headers: { Authorization: `Bearer ${token}` } 
-            }), 'tenants');
+            });
             if (response.ok) {
                 const data = await response.json();
                 setTenants(data.tenants);
@@ -102,27 +101,39 @@ const Properties: React.FC = () => {
         } catch (error) {
             console.error('Failed to fetch tenants:', error);
         }
-    }, [token, apiCall]);
+    }, [token]);
 
     const fetchPropertyUnits = async (propertyId: number) => {
         try {
-            const response = await apiCall(() => fetch(`${API_BASE_URL}/units?propertyId=${propertyId}`, { 
-                headers: { Authorization: `Bearer ${token}` } 
-            }), 'units');
+            setIsUnitsLoading(true);
+            const response = await fetch(`${API_BASE_URL}/units?propertyId=${propertyId}`, { 
+                headers: { 
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                } 
+            });
+            
             if (response.ok) {
                 const data = await response.json();
-                setPropertyUnits(data.units);
+               
+                setPropertyUnits(data.units || []);
+            } else {
+                console.log('API Error Response:', await response.text());
+                setPropertyUnits([]);
             }
         } catch (error) {
             console.error('Failed to fetch property units:', error);
+            setPropertyUnits([]);
+        } finally {
+            setIsUnitsLoading(false);
         }
     };
 
     const fetchAvailableUnits = async (propertyId: number) => {
         try {
-            const response = await apiCall(() => fetch(`${API_BASE_URL}/units?propertyId=${propertyId}`, { 
+            const response = await fetch(`${API_BASE_URL}/units?propertyId=${propertyId}`, { 
                 headers: { Authorization: `Bearer ${token}` } 
-            }), 'units');
+            });
             if (response.ok) {
                 const data = await response.json();
                 const vacantUnits = data.units?.filter((unit: Unit) => !unit.is_occupied) || [];
@@ -156,18 +167,23 @@ const Properties: React.FC = () => {
         const method = selectedProperty ? 'PUT' : 'POST';
 
         try {
-            const result = await apiCall(() => fetch(url, {
+            const response = await fetch(url, {
                 method,
                 headers: { 
                     'Content-Type': 'application/json', 
                     Authorization: `Bearer ${token}` 
                 },
                 body: JSON.stringify(propertyFormData),
-            }), 'properties');
+            });
 
-            if (result) {
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Property saved:', data);
                 fetchProperties();
                 setPropertyModalOpen(false);
+            } else {
+                const errorData = await response.json();
+                console.error('Failed to save property:', errorData);
             }
         } catch (error) {
             console.error('Failed to save property:', error);
@@ -180,6 +196,7 @@ const Properties: React.FC = () => {
         setSelectedProperty(property);
         await fetchPropertyUnits(property.id);
         setUnitsViewerModalOpen(true);
+       
     };
     
     const handleAddUnit = (property: Property, unitToEdit?: Unit) => {
@@ -223,7 +240,7 @@ const Properties: React.FC = () => {
                 : `${API_BASE_URL}/units`;
             const method = isEditingUnit ? 'PUT' : 'POST';
 
-            const result = await apiCall(() => fetch(url, {
+            const response = await fetch(url, {
                 method,
                 headers: { 
                     'Content-Type': 'application/json', 
@@ -236,9 +253,11 @@ const Properties: React.FC = () => {
                     monthlyRent: parseFloat(unitFormData.monthlyRent),
                     deposit: parseFloat(unitFormData.deposit),
                 }),
-            }), 'units');
+            });
 
-            if (result) {
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Unit saved:', data);
                 setUnitModalOpen(false);
                 setIsEditingUnit(false);
                 setUnitFormData(initialUnitFormData);
@@ -246,6 +265,9 @@ const Properties: React.FC = () => {
                 if (selectedProperty) {
                     fetchPropertyUnits(selectedProperty.id);
                 }
+            } else {
+                const errorData = await response.json();
+                console.error('Failed to save unit:', errorData);
             }
         } catch (error) {
             console.error('Failed to save unit:', error);
@@ -265,18 +287,23 @@ const Properties: React.FC = () => {
         e.preventDefault();
         setFormLoading(true);
         try {
-            const result = await apiCall(() => fetch(`${API_BASE_URL}/contracts`, {
+            const response = await fetch(`${API_BASE_URL}/contracts`, {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json', 
                     Authorization: `Bearer ${token}` 
                 },
                 body: JSON.stringify(contractFormData),
-            }), 'contracts');
+            });
 
-            if (result) {
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Contract created:', data);
                 fetchProperties();
                 setContractModalOpen(false);
+            } else {
+                const errorData = await response.json();
+                console.error('Failed to create contract:', errorData);
             }
         } catch (error) {
             console.error('Failed to create contract:', error);
@@ -331,7 +358,8 @@ const Properties: React.FC = () => {
                 if (response.ok) {
                     fetchProperties(); // Refresh the list
                 } else {
-                    alert('Failed to delete property');
+                    const errorData = await response.json();
+                    alert(errorData.message || 'Failed to delete property');
                 }
             } catch (error) {
                 console.error('Delete error:', error);

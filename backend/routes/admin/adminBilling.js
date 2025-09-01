@@ -7,7 +7,9 @@ const {
   getAllSubscriptions,
   getOrganizationBilling,
   updateOrganizationSubscription,
-  generateBillingReport
+  generateBillingReport,
+  verifySubscription,
+  downloadReceipt
 } = require('../../controllers/admin/adminBillingController');
 
 // All admin routes require super admin authentication
@@ -28,5 +30,11 @@ router.post('/organizations/:orgId/subscription', updateOrganizationSubscription
 
 // Generate billing report
 router.get('/reports', generateBillingReport);
+
+// Verify subscription
+router.post('/subscriptions/:subscriptionId/verify', verifySubscription);
+
+// Download receipt
+router.get('/receipts/download', downloadReceipt);
 
 module.exports = router;

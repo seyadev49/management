@@ -29,7 +29,6 @@ const documentRoutes = require('./routes/document');
 const notificationRoutes = require('./routes/notification');
 const subscriptionRoutes = require('./routes/subscription');
 const reportRoutes = require('./routes/report');
-const organizationRoutes = require('./routes/admin/organizationRoutes');
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -45,18 +44,11 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/reports', reportRoutes);
 
-// Admin routes
+// Admin routes - Fixed the path
 app.use('/api/admin/users', require('./routes/admin/adminUser'));
 app.use('/api/admin/billing', require('./routes/admin/adminBilling'));
 app.use('/api/admin/analytics', require('./routes/admin/adminAnalytics'));
-app.use('/api/admin', organizationRoutes);
-
-// // Schedule notification generation to run daily at 9 AM
-// cron.schedule('0 9 * * *', () => {
-//   console.log('Running scheduled notification generation...');
-//   generateSystemNotifications();
-// });
-// Schedule notification generation to run every hour for comprehensive coverage
+app.use('/api/admin/users/organizations', require('./routes/admin/organizationRoutes')); // Fixed this line
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -74,19 +66,22 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+// Schedule notification generation to run every hour for comprehensive coverage
 cron.schedule('0 * * * *', () => {
   console.log('Running scheduled notification generation...');
   generateSystemNotifications();
 });
 
+const { generateMonthlyRentPayments } = require('./controllers/notificationController');
 // Schedule monthly payment generation to run daily at 6 AM
 cron.schedule('0 6 * * *', () => {
   console.log('Running monthly payment generation...');
-  const { generateMonthlyRentPayments } = require('./controllers/notificationController');
   generateMonthlyRentPayments();
 });
 
 // Also run on startup
 setTimeout(() => {
   generateSystemNotifications();
+  generateMonthlyRentPayments();
 }, 5000);

@@ -67,23 +67,39 @@ const Organizations: React.FC = () => {
   }, [token]);
 
   const fetchOrganizations = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/api/admin/users/organizations', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+  try {
+    const response = await fetch('http://localhost:5000/api/admin/users/organizations', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
 
-      if (response.ok) {
-        const data = await response.json();
+    if (response.ok) {
+      const data = await response.json();
+      console.log('Full API response structure:', data);
+      console.log('Type of data:', typeof data);
+      console.log('Is array?', Array.isArray(data));
+      
+      // Debug different possible structures
+      if (data.organizations && Array.isArray(data.organizations)) {
+        console.log('Using data.organizations');
+        setOrganizations(data.organizations);
+      } else if (Array.isArray(data)) {
+        console.log('Using raw data array');
         setOrganizations(data);
+      } else {
+        console.log('Unexpected data structure');
+        setOrganizations([]);
       }
-    } catch (error) {
-      console.error('Error fetching organizations:', error);
-    } finally {
-      setLoading(false);
+    } else {
+      console.error('Failed to fetch organizations:', response.status, await response.text());
     }
-  };
+  } catch (error) {
+    console.error('Error fetching organizations:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const fetchOrganizationDetails = async (orgId: number) => {
     try {
@@ -95,8 +111,11 @@ const Organizations: React.FC = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setSelectedOrg(data);
+        console.log('Organization details:', data); // Debug log
+        setSelectedOrg(data.data || data);
         setShowDetailsModal(true);
+      } else {
+        console.error('Failed to fetch organization details:', response.status, await response.text());
       }
     } catch (error) {
       console.error('Error fetching organization details:', error);
@@ -106,8 +125,8 @@ const Organizations: React.FC = () => {
   const toggleOrganizationStatus = async (orgId: number, action: 'suspend' | 'reactivate', reason?: string) => {
     setActionLoading(`${action}-${orgId}`);
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/users/organizations/${orgId}/toggle-status`, {
-        method: 'POST',
+      const response = await fetch(`http://localhost:5000/api/admin/users/organizations/${orgId}/status`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
@@ -120,6 +139,8 @@ const Organizations: React.FC = () => {
         if (selectedOrg && selectedOrg.organization.id === orgId) {
           await fetchOrganizationDetails(orgId);
         }
+      } else {
+        console.error('Failed to toggle organization status:', response.status, await response.text());
       }
     } catch (error) {
       console.error('Error toggling organization status:', error);
@@ -145,6 +166,8 @@ const Organizations: React.FC = () => {
 
       if (response.ok) {
         alert('Password reset successfully');
+      } else {
+        console.error('Failed to reset password:', response.status, await response.text());
       }
     } catch (error) {
       console.error('Error resetting password:', error);
@@ -170,6 +193,8 @@ const Organizations: React.FC = () => {
         if (newWindow) {
           alert(`Impersonating ${data.userDetails.name} (${data.userDetails.email})`);
         }
+      } else {
+        console.error('Failed to impersonate user:', response.status, await response.text());
       }
     } catch (error) {
       console.error('Error impersonating user:', error);
@@ -178,11 +203,12 @@ const Organizations: React.FC = () => {
     }
   };
 
-  const filteredOrganizations = organizations.filter(org =>
-    (org.organization_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-     org.email?.toLowerCase().includes(searchTerm.toLowerCase())) &&
-    (filterStatus === '' || org.subscription_status === filterStatus)
-  );
+  const filteredOrganizations = organizations.filter(org => {
+  const matchesSearch = org.organization_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                       org.email?.toLowerCase().includes(searchTerm.toLowerCase());
+  const matchesStatus = filterStatus === '' || org.subscription_status === filterStatus;
+  return matchesSearch && matchesStatus;
+});
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -470,17 +496,32 @@ const Organizations: React.FC = () => {
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Activity</h3>
                   <div className="space-y-3 max-h-60 overflow-y-auto">
-                    {selectedOrg.activityLogs.map((log, index) => (
-                      <div key={index} className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">{log.action}</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">by {log.user_name}</div>
+                    {selectedOrg.activityLogs && selectedOrg.activityLogs.length > 0 ? (
+                      selectedOrg.activityLogs.map((log, index) => (
+                        <div key={index} className="flex justify-between items-start p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                          <div className="flex-1">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">
+                              {log.action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">by {log.user_name}</div>
+                            {log.details && (
+                              <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                                {typeof log.details === 'string' ? log.details : JSON.stringify(log.details)}
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 ml-4">
+                            {new Date(log.created_at).toLocaleDateString()}
+                          </div>
                         </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {new Date(log.created_at).toLocaleDateString()}
-                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-8">
+                        <AlertCircle className="mx-auto h-8 w-8 text-gray-400 dark:text-gray-500 mb-2" />
+                        <p className="text-gray-600 dark:text-gray-400">No recent activity</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Activity will appear here when users interact with the system</p>
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
               </div>
