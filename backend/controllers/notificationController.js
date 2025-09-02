@@ -146,9 +146,10 @@ const generateSystemNotifications = async () => {
     for (const subscription of overdueSubscriptions) {
       // Mark subscription as overdue
       await db.execute(
-        'UPDATE organizations SET subscription_status = "overdue", overdue_since = CURDATE() WHERE id = ?',
-        [subscription.id]
-      );
+  'UPDATE organizations SET subscription_status = ?, overdue_since = CURDATE() WHERE id = ?',
+  ['overdue', subscription.id]
+);
+
 
       // Only send overdue notification once per day
       const [existing] = await db.execute(
@@ -311,10 +312,11 @@ const generateSystemNotifications = async () => {
 
     for (const payment of overduePayments) {
       // Mark payment as overdue
-      await db.execute(
-        'UPDATE payments SET status = "overdue" WHERE id = ?',
-        [payment.id]
-      );
+await db.execute(
+  'UPDATE payments SET status = ? WHERE id = ?',
+  ['overdue', payment.id]
+);
+
 
       // Only send overdue notification once per day
       const [existing] = await db.execute(

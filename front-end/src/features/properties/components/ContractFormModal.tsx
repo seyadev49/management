@@ -31,10 +31,11 @@ interface ContractFormModalProps {
     propertyName: string;
     availableUnits: Unit[];
     tenants: Tenant[];
+    error?: string; // Add error prop
 }
 
 export const ContractFormModal: React.FC<ContractFormModalProps> = ({
-    isOpen, onClose, onSubmit, formData, onInputChange, propertyName, availableUnits, tenants
+    isOpen, onClose, onSubmit, formData, onInputChange, propertyName, availableUnits, tenants, error
 }) => {
     if (!isOpen) return null;
 
@@ -46,6 +47,14 @@ export const ContractFormModal: React.FC<ContractFormModalProps> = ({
                     <form onSubmit={onSubmit}>
                         <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 max-h-[80vh] overflow-y-auto">
                             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Create Contract - {propertyName}</h3>
+                            
+                            {/* Display error message */}
+                            {error && (
+                                <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                                    {error}
+                                </div>
+                            )}
+                            
                             <div className="space-y-6">
                                 {/* Contract Details */}
                                 <div>

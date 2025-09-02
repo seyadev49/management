@@ -30,6 +30,11 @@ const Properties: React.FC = () => {
     const [isContractModalOpen, setContractModalOpen] = useState(false);
     const [isEditingUnit, setIsEditingUnit] = useState(false); // Track if we're editing an existing unit
 
+    // Add this state to your Properties component
+const [contractError, setContractError] = useState<string | null>(null);
+
+
+    const [error, setError] = useState<string | null>(null);
     // Form Data State
     const initialPropertyFormData = { 
         name: '', 
@@ -283,34 +288,39 @@ const Properties: React.FC = () => {
         setContractModalOpen(true);
     };
 
-    const handleContractSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setFormLoading(true);
-        try {
-            const response = await fetch(`${API_BASE_URL}/contracts`, {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json', 
-                    Authorization: `Bearer ${token}` 
-                },
-                body: JSON.stringify(contractFormData),
-            });
+// Update the handleContractSubmit function
+const handleContractSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormLoading(true);
+    try {
+        const response = await fetch(`${API_BASE_URL}/contracts`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json', 
+                Authorization: `Bearer ${token}` 
+            },
+            body: JSON.stringify(contractFormData),
+        });
 
-            if (response.ok) {
-                const data = await response.json();
-                console.log('Contract created:', data);
-                fetchProperties();
-                setContractModalOpen(false);
-            } else {
-                const errorData = await response.json();
-                console.error('Failed to create contract:', errorData);
-            }
-        } catch (error) {
-            console.error('Failed to create contract:', error);
-        } finally {
-            setFormLoading(false);
+        if (response.ok) {
+            const data = await response.json();
+            console.log('Contract created:', data);
+            fetchProperties();
+            setContractModalOpen(false);
+            setContractError(null); // Clear error on success
+        } else {
+            const errorData = await response.json();
+            console.error('Failed to create contract:', errorData);
+            // Show error message to user
+            setContractError(errorData.message || 'Failed to create contract');
         }
-    };
+    } catch (error) {
+        console.error('Failed to create contract:', error);
+        setContractError('Network error occurred');
+    } finally {
+        setFormLoading(false);
+    }
+};
 
     const handleContractInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -487,19 +497,22 @@ const Properties: React.FC = () => {
                         }}
                         onDeleteUnit={handleDeleteUnit}
                     />
-                    <ContractFormModal
-                        isOpen={isContractModalOpen}
-                        onClose={() => {
-                            setContractModalOpen(false);
-                            setSelectedProperty(null);
-                        }}
-                        onSubmit={handleContractSubmit}
-                        formData={contractFormData}
-                        onInputChange={handleContractInputChange}
-                        propertyName={selectedProperty.name}
-                        availableUnits={availableUnits}
-                        tenants={tenants}
-                    />
+                   // Update the ContractFormModal render to pass the error
+<ContractFormModal
+    isOpen={isContractModalOpen}
+    onClose={() => {
+        setContractModalOpen(false);
+        setSelectedProperty(null);
+        setContractError(null); // Clear error when closing
+    }}
+    onSubmit={handleContractSubmit}
+    formData={contractFormData}
+    onInputChange={handleContractInputChange}
+    propertyName={selectedProperty.name}
+    availableUnits={availableUnits}
+    tenants={tenants}
+    error={contractError} // Pass the error here
+/>
                 </>
             )}
         </div>
