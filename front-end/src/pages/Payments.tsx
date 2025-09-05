@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useApiWithLimitCheck } from '../hooks/useApiWithLimitCheck';
 import { 
   CreditCard, 
   Plus, 
@@ -37,6 +38,7 @@ interface Contract {
 
 const Payments: React.FC = () => {
   const { token } = useAuth();
+   const { apiCall } = useApiWithLimitCheck();
   const [payments, setPayments] = useState<Payment[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);

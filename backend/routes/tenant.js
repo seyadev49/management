@@ -9,11 +9,15 @@ const {
   getTerminatedTenants,
   getSecurityDeposit
 } = require('../controllers/tenantController');
-const { authenticateToken, authorize } = require('../middleware/auth');
+const { authenticateToken, authorize, logActivity } = require('../middleware/auth');
 const { checkPlanLimit } = require('../middleware/planLimits');
 const { terminateTenant } = require('../controllers/tenantController');
 
 const router = express.Router();
+
+// Apply authentication and activity logging globally for all routes in this router
+router.use(authenticateToken); // Ensures req.user exists
+router.use(logActivity());     // Logs every request after auth
 
 const tenantValidation = [
   body('tenantId').notEmpty().withMessage('Tenant ID is required'),

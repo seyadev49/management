@@ -83,51 +83,61 @@ const authorize = (...roles) => {
     next();
   };
 };
-
-const logActivity = (action) => {
+const logActivity = (customAction) => {
   return async (req, res, next) => {
-    console.log(`=== LOG ACTIVITY MIDDLEWARE CALLED FOR ACTION: ${action} ===`);
-    try {
-      if (req.user && req.user.id) {
-        const details = {
-          method: req.method,
-          url: req.url,
-          body: (req.method === 'POST' || req.method === 'PUT') ? req.body : null,
-          params: req.params,
-          query: req.query
-        };
+    // Store original end function
+    const originalEnd = res.end;
+    
+    // Override end to capture when response is sent
+    res.end = function(chunk, encoding) {
+      // Call original end
+      originalEnd.call(this, chunk, encoding);
+      
+      // Log activity after response is sent
+      setImmediate(async () => {
+        try {
+          let finalAction;
+          if (customAction) {
+            finalAction = customAction;
+          } else if (req.route) {
+            const basePath = req.baseUrl || '';
+            const routePath = req.route.path.replace(/:/g, '');
+            finalAction = `${req.method}_${basePath}${routePath}`.replace(/\/+/g, '/');
+          } else {
+            finalAction = `${req.method}_UNKNOWN_ROUTE`;
+          }
 
-        console.log('Attempting to insert activity log...');
+          if (req.user && req.user.id) {
+            const details = {
+              method: req.method,
+              url: req.url,
+              statusCode: res.statusCode,
+              body: (req.method === 'POST' || req.method === 'PUT') ? req.body : null,
+              params: req.params,
+              query: req.query
+            };
 
-        await db.execute(
-          `INSERT INTO activity_logs 
-            (user_id, organization_id, action, details, ip_address, user_agent) 
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [
-            req.user.id,
-            req.user.organization_id,
-            action,
-            JSON.stringify(details),
-            req.ip || req.connection.remoteAddress,
-            req.get('user-agent')
-          ]
-        );
+            await db.execute(
+              `INSERT INTO activity_logs 
+                (user_id, organization_id, action, details, ip_address, user_agent) 
+               VALUES (?, ?, ?, ?, ?, ?)`,
+              [
+                req.user.id,
+                req.user.organization_id,
+                finalAction,
+                JSON.stringify(details),
+                req.ip || req.connection?.remoteAddress || null,
+                req.get('user-agent') || null
+              ]
+            );
+          }
+        } catch (error) {
+          console.error('Activity logging error:', error);
+        }
+      });
+    };
 
-        console.log('Activity log inserted successfully!');
-
-        await db.execute(
-          'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?',
-          [req.user.id]
-        );
-
-        console.log('User last_login updated');
-      } else {
-        console.log('No user found for activity logging');
-      }
-    } catch (error) {
-      console.error('Activity logging error:', error); // <-- full error
-    }
+    next();
   };
 };
-
 module.exports = { authenticateToken, authorize, logActivity };

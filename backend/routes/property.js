@@ -7,11 +7,16 @@ const {
   updateProperty,
   deleteProperty
 } = require('../controllers/propertyController');
-const { authenticateToken, authorize,logActivity } = require('../middleware/auth');
+const { authenticateToken, authorize, logActivity } = require('../middleware/auth');
 const { checkPlanLimit } = require('../middleware/planLimits');
 
 const router = express.Router();
 
+// Apply authentication and activity logging globally for all routes in this router
+router.use(authenticateToken); // Ensures req.user exists
+router.use(logActivity());     // Logs every request after auth
+
+// Optional: Add role-based authorization where needed
 const propertyValidation = [
   body('name').notEmpty().withMessage('Property name is required'),
   body('type').isIn(['apartment', 'house', 'shop', 'office']).withMessage('Invalid property type'),
@@ -19,10 +24,11 @@ const propertyValidation = [
   body('city').notEmpty().withMessage('City is required'),
 ];
 
-router.post('/', authenticateToken, authorize('landlord', 'admin'), checkPlanLimit('properties'), propertyValidation, createProperty);
-router.get('/', authenticateToken, getProperties);
-router.get('/:id', authenticateToken, getPropertyById);
-router.put('/:id', authenticateToken, authorize('landlord', 'admin'), propertyValidation, updateProperty);
-router.delete('/:id', authenticateToken, authorize('landlord', 'admin'),  logActivity('DELETE_USER'), deleteProperty);
+// Routes
+router.post('/', authorize('landlord', 'admin'), checkPlanLimit('properties'), propertyValidation, createProperty);
+router.get('/', getProperties);
+router.get('/:id', getPropertyById);
+router.put('/:id', authorize('landlord', 'admin'), propertyValidation, updateProperty);
+router.delete('/:id', authorize('landlord', 'admin'), deleteProperty);
 
 module.exports = router;

@@ -1,5 +1,5 @@
 const express = require('express');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, logActivity } = require('../middleware/auth');
 const { checkPlanLimit } = require('../middleware/planLimits');
 const {
   upload,
@@ -10,6 +10,9 @@ const {
 } = require('../controllers/documentController');
 
 const router = express.Router();
+// Apply authentication and activity logging globally for all routes in this router
+router.use(authenticateToken); // Ensures req.user exists
+router.use(logActivity());     // Logs every request after auth
 
 router.get('/', authenticateToken, getDocuments);
 router.post('/upload', authenticateToken, checkPlanLimit('documents'), upload.single('document'), uploadDocument);

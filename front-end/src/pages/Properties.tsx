@@ -497,7 +497,6 @@ const handleContractSubmit = async (e: React.FormEvent) => {
                         }}
                         onDeleteUnit={handleDeleteUnit}
                     />
-                   // Update the ContractFormModal render to pass the error
 <ContractFormModal
     isOpen={isContractModalOpen}
     onClose={() => {

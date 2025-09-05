@@ -7,9 +7,12 @@ const {
   updateUnit,
   deleteUnit
 } = require('../controllers/unitController');
-const { authenticateToken, authorize } = require('../middleware/auth');
+const { authenticateToken, authorize, logActivity } = require('../middleware/auth');
 
 const router = express.Router();
+// Apply authentication and activity logging globally for all routes in this router
+router.use(authenticateToken); // Ensures req.user exists
+router.use(logActivity());     // Logs every request after auth
 
 const unitValidation = [
   body('propertyId').isInt().withMessage('Valid property ID is required'),

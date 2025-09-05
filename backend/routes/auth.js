@@ -1,9 +1,10 @@
 const express = require('express');
 const { body } = require('express-validator');
 const { register, login, getProfile, forgotPassword, resetPassword, validateResetToken, updateProfile, getOrganization, updateOrganization } = require('../controllers/authController');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, logActivity } = require('../middleware/auth');
 
 const router = express.Router();
+
 
 // Validation middleware
 const registerValidation = [

@@ -7,9 +7,12 @@ const {
   getSubscriptionStatus,
   checkPlanLimits
 } = require('../controllers/subscriptionController');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, logActivity } = require('../middleware/auth');
 
 const router = express.Router();
+// Apply authentication and activity logging globally for all routes in this router
+router.use(authenticateToken); // Ensures req.user exists
+router.use(logActivity());     // Logs every request after auth
 
 router.get('/plans', authenticateToken, getSubscriptionPlans);
 router.post('/upgrade', authenticateToken, upload.single('receipt'), upgradeSubscription);

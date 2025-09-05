@@ -8,9 +8,13 @@ const {
   generateOverduePayments,
   getPaymentSummary
 } = require('../controllers/paymentController');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, logActivity } = require('../middleware/auth');
 
 const router = express.Router();
+
+// Apply authentication and activity logging globally for all routes in this router
+router.use(authenticateToken); // Ensures req.user exists
+router.use(logActivity());     // Logs every request after auth
 
 const paymentValidation = [
   body('contractId').isInt().withMessage('Valid contract ID is required'),

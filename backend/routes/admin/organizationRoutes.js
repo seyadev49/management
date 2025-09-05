@@ -19,7 +19,7 @@ router.use((req, res, next) => {
 });
 
 router.use(authenticateToken);
-router.use(authorize('landlord', 'admin')); // Changed to match your user roles
+router.use(authorize('super_admin')); // Changed to match your user roles
 
 // Create new organization
 console.log('Setting up POST /organizations/create');
@@ -56,7 +56,7 @@ router.get('/organizations/:orgId',
 
 // Update organization status (suspend/reactivate)
 console.log('Setting up PUT /organizations/:orgId/status');
-router.put('/organizations/:orgId/status', 
+router.put('/:orgId/status', 
   (req, res, next) => {
     console.log('PUT /organizations/:orgId/status middleware called');
     next();

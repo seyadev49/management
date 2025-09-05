@@ -493,37 +493,169 @@ const Organizations: React.FC = () => {
                 </div>
 
                 {/* Recent Activity */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Activity</h3>
-                  <div className="space-y-3 max-h-60 overflow-y-auto">
-                    {selectedOrg.activityLogs && selectedOrg.activityLogs.length > 0 ? (
-                      selectedOrg.activityLogs.map((log, index) => (
-                        <div key={index} className="flex justify-between items-start p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                          <div className="flex-1">
-                            <div className="text-sm font-medium text-gray-900 dark:text-white">
-                              {log.action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                            </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">by {log.user_name}</div>
-                            {log.details && (
-                              <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">
-                                {typeof log.details === 'string' ? log.details : JSON.stringify(log.details)}
-                              </div>
-                            )}
-                          </div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 ml-4">
-                            {new Date(log.created_at).toLocaleDateString()}
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-8">
-                        <AlertCircle className="mx-auto h-8 w-8 text-gray-400 dark:text-gray-500 mb-2" />
-                        <p className="text-gray-600 dark:text-gray-400">No recent activity</p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Activity will appear here when users interact with the system</p>
+                {/* Recent Activity - Enhanced Version */}
+<div>
+  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Activity</h3>
+  <div className="space-y-3 max-h-96 overflow-y-auto">
+    {selectedOrg.activityLogs && selectedOrg.activityLogs.length > 0 ? (
+      selectedOrg.activityLogs.map((log, index) => {
+        // Parse the details JSON
+        let details = {};
+        try {
+          details = typeof log.details === 'string' ? JSON.parse(log.details) : log.details;
+        } catch (e) {
+          details = {};
+        }
+
+        // Get action color based on method
+        const getActionColor = (action: string) => {
+          if (action.startsWith('POST')) return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
+          if (action.startsWith('PUT') || action.startsWith('PATCH')) return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
+          if (action.startsWith('DELETE')) return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
+          if (action.startsWith('GET')) return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+          return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300';
+        };
+
+        // Get HTTP method icon
+        const getMethodIcon = (action: string) => {
+          if (action.startsWith('POST')) return '➕';
+          if (action.startsWith('PUT') || action.startsWith('PATCH')) return '✏️';
+          if (action.startsWith('DELETE')) return '🗑️';
+          if (action.startsWith('GET')) return '👁️';
+          return '⚡';
+        };
+
+        // Format action text
+        const formatAction = (action: string) => {
+          return action
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, l => l.toUpperCase())
+            .replace('Api', 'API');
+        };
+
+        // Get status color
+        const getStatusColor = (statusCode: number) => {
+          if (statusCode >= 200 && statusCode < 300) return 'text-green-600 dark:text-green-400';
+          if (statusCode >= 300 && statusCode < 400) return 'text-yellow-600 dark:text-yellow-400';
+          if (statusCode >= 400) return 'text-red-600 dark:text-red-400';
+          return 'text-gray-600 dark:text-gray-400';
+        };
+
+        return (
+          <div 
+            key={index} 
+            className="border border-gray-200 dark:border-gray-600 rounded-lg hover:shadow-md transition-shadow duration-200"
+          >
+            <div className="p-4">
+              {/* Header */}
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex items-center space-x-2">
+                  <span className="text-lg">{getMethodIcon(log.action)}</span>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getActionColor(log.action)}`}>
+                    {formatAction(log.action)}
+                  </span>
+                  {details.statusCode && (
+                    <span className={`text-xs font-mono ${getStatusColor(details.statusCode)}`}>
+                      {details.statusCode}
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                  {new Date(log.created_at).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric'
+                  })}
+                  <br />
+                  {new Date(log.created_at).toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </div>
+              </div>
+
+              {/* User Info */}
+              <div className="flex items-center mb-3">
+                <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center mr-2">
+                  <span className="text-xs text-white font-medium">
+                    {log.user_name?.charAt(0).toUpperCase() || 'U'}
+                  </span>
+                </div>
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  by <span className="font-medium">{log.user_name}</span>
+                </span>
+              </div>
+
+              {/* Details */}
+              <div className="text-xs bg-gray-50 dark:bg-gray-700/30 rounded p-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400">URL:</span>
+                    <span className="ml-1 font-mono text-gray-900 dark:text-gray-200 break-all">
+                      {details.url || 'N/A'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400">Method:</span>
+                    <span className="ml-1 font-medium">{details.method || 'N/A'}</span>
+                  </div>
+                </div>
+
+                {/* Params and Query */}
+                {(Object.keys(details.params || {}).length > 0 || Object.keys(details.query || {}).length > 0) && (
+                  <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                    {Object.keys(details.params || {}).length > 0 && (
+                      <div className="mb-1">
+                        <span className="text-gray-500 dark:text-gray-400">Params:</span>
+                        <span className="ml-1 text-gray-700 dark:text-gray-300">
+                          {Object.entries(details.params || {}).map(([key, value]) => 
+                            `${key}=${value}`
+                          ).join(', ')}
+                        </span>
+                      </div>
+                    )}
+                    {Object.keys(details.query || {}).length > 0 && (
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">Query:</span>
+                        <span className="ml-1 text-gray-700 dark:text-gray-300">
+                          {Object.entries(details.query || {}).map(([key, value]) => 
+                            `${key}=${value}`
+                          ).join(', ')}
+                        </span>
                       </div>
                     )}
                   </div>
-                </div>
+                )}
+
+                {/* Body (for POST/PUT requests) */}
+                {details.body && Object.keys(details.body).length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                    <span className="text-gray-500 dark:text-gray-400">Body:</span>
+                    <div className="mt-1 text-gray-700 dark:text-gray-300">
+                      {Object.entries(details.body).map(([key, value]) => (
+                        <div key={key} className="text-xs">
+                          <span className="font-medium">{key}:</span> {String(value)}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })
+    ) : (
+      <div className="text-center py-8 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
+        <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-3">
+          <AlertCircle className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+        </div>
+        <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-1">No Activity Yet</h4>
+        <p className="text-gray-600 dark:text-gray-400">User activity will appear here when they interact with the system</p>
+      </div>
+    )}
+  </div>
+</div>
               </div>
             </div>
           </div>
