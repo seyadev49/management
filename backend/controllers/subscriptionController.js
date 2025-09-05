@@ -42,17 +42,18 @@ const getSubscriptionPlans = async (req, res) => {
       {
         id: 'basic',
         name: 'Basic Plan',
-        price: 29.99,
+        price: 600,
+        price_yearly: 6480,
         interval: 'month',
         limits: {
           properties: 3,
-          tenants: 50,
+          tenants: 25,
           documents: 100,
           maintenance_requests: 50
         },
         features: [
           'Up to 3 properties',
-          'Up to 50 tenants',
+          'Up to 25 tenants',
           'Basic payment tracking',
           'Email support',
           'Document storage (100 files)',
@@ -62,17 +63,18 @@ const getSubscriptionPlans = async (req, res) => {
       {
         id: 'professional',
         name: 'Professional Plan',
-        price: 59.99,
+        price: 2000,
+        price_yearly: 21600,
         interval: 'month',
         limits: {
-          properties: 20,
-          tenants: 200,
+          properties: 10,
+          tenants: 100,
           documents: 500,
           maintenance_requests: 200
         },
         features: [
-          'Up to 20 properties',
-          'Up to 200 tenants',
+          'Up to 10 properties',
+          'Up to 100 tenants',
           'Advanced payment tracking',
           'Maintenance management',
           'Document storage (500 files)',
@@ -83,7 +85,8 @@ const getSubscriptionPlans = async (req, res) => {
       {
         id: 'enterprise',
         name: 'Enterprise Plan',
-        price: 99.99,
+        price: 5000,
+        price_yearly: 51000,
         interval: 'month',
         limits: {
           properties: -1, // unlimited
@@ -95,14 +98,12 @@ const getSubscriptionPlans = async (req, res) => {
           'Unlimited properties',
           'Unlimited tenants',
           'Full feature access',
-          'Advanced integrations',
           'Dedicated support',
           'Custom reporting',
-          'API access',
           'Advanced reporting',
           'Unlimited document storage',
           '24/7 phone support',
-          'Custom integrations'
+          // 'Custom integrations'
         ]
       }
     ];

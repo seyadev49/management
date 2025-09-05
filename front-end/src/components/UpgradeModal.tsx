@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { X, Check, CreditCard, Calendar, Upload, FileText, AlertCircle } from 'lucide-react';
+import { X, Check, Upload, FileText, AlertCircle } from 'lucide-react';
 
 interface Plan {
   id: string;
   name: string;
   price: number;
+  price_yearly: number;
   interval: string;
   features: string[];
 }
@@ -111,17 +112,32 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose }) => {
     }
   };
 
+  // Calculate savings for a specific plan
+  const calculateSavings = (plan: Plan) => {
+    if (billingCycle === 'monthly') return 0;
+    
+    // Calculate savings: (monthly price * 12) - annual price
+    const monthlyCost = plan.price * 12;
+    const annualCost = plan.price_yearly;
+    return monthlyCost - annualCost;
+  };
+
   if (!isOpen) return null;
 
   const selectedPlanData = plans.find(plan => plan.id === selectedPlan);
+  
   const getPrice = () => {
     if (!selectedPlanData) return 0;
-    return billingCycle === 'annual' ? selectedPlanData.price * 10 : selectedPlanData.price; // 2 months free for annual
+    return billingCycle === 'annual' ? selectedPlanData.price_yearly : selectedPlanData.price;
   };
 
   const getSavings = () => {
-    if (!selectedPlanData) return 0;
-    return selectedPlanData.price * 2; // 2 months free
+    if (!selectedPlanData || billingCycle === 'monthly') return 0;
+    
+    // Calculate savings: (monthly price * 12) - annual price
+    const monthlyCost = selectedPlanData.price * 12;
+    const annualCost = selectedPlanData.price_yearly;
+    return monthlyCost - annualCost;
   };
 
   return (
@@ -208,7 +224,7 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose }) => {
                     >
                       Annual
                       <span className="ml-2 text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 px-2 py-1 rounded-full">
-                        Save 17%
+                        Save 10%
                       </span>
                     </button>
                   </div>
@@ -217,9 +233,9 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose }) => {
                 {/* Plan Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {plans.map((plan) => {
-                    const price = billingCycle === 'annual' ? plan.price * 10 : plan.price;
-                    const savings = billingCycle === 'annual' ? plan.price * 2 : 0;
-                    
+                    const price = billingCycle === 'annual' ? plan.price_yearly : plan.price;
+                    const savings = calculateSavings(plan);
+
                     return (
                       <div
                         key={plan.id}
@@ -230,10 +246,10 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose }) => {
                         }`}
                         onClick={() => setSelectedPlan(plan.id)}
                       >
-                        {billingCycle === 'annual' && (
+                        {billingCycle === 'annual' && savings > 0 && (
                           <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                             <span className="bg-green-500 text-white text-xs px-3 py-1 rounded-full">
-                              Save ${savings}
+                              Save ${savings.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
                           </div>
                         )}
@@ -241,11 +257,11 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose }) => {
                         <div className="text-center">
                           <h4 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">{plan.name}</h4>
                           <div className="mb-4">
-                            <span className="text-3xl font-bold text-gray-900 dark:text-white">${price}</span>
+                            <span className="text-3xl font-bold text-gray-900 dark:text-white">${price.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
                             <span className="text-gray-600 dark:text-gray-400">/{billingCycle === 'annual' ? 'year' : 'month'}</span>
                             {billingCycle === 'annual' && (
                               <div className="text-sm text-green-600 dark:text-green-400 font-medium">
-                                ${plan.price}/month billed annually
+                                ${(price / 12).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/month billed annually
                               </div>
                             )}
                           </div>
@@ -278,8 +294,8 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose }) => {
                     <input
                       type="radio"
                       name="paymentMethod"
-                      value="bank_transfer"
-                      checked={paymentMethod === 'bank_transfer'}
+                      value="cbe"
+                      checked={paymentMethod === 'cbe'}
                       onChange={(e) => setPaymentMethod(e.target.value)}
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:bg-gray-700 dark:border-gray-600"
                     />
@@ -288,8 +304,28 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose }) => {
                         <span className="text-blue-600 text-lg">🏦</span>
                       </div>
                       <div>
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">Bank Transfer</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">Transfer to our bank account</div>
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">Commercial Bank of Ethiopia (CBE)</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Transfer to our CBE account</div>
+                      </div>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-blue-300 transition-colors dark:border-gray-700 dark:hover:border-blue-400">
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value="awash"
+                      checked={paymentMethod === 'awash'}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:bg-gray-700 dark:border-gray-600"
+                    />
+                    <div className="ml-4 flex items-center">
+                      <div className="p-2 bg-green-100 rounded-lg mr-3 dark:bg-green-900/30">
+                        <span className="text-green-600 text-lg">🏦</span>
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">Awash Bank</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Transfer to our Awash account</div>
                       </div>
                     </div>
                   </label>
@@ -304,8 +340,8 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose }) => {
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:bg-gray-700 dark:border-gray-600"
                     />
                     <div className="ml-4 flex items-center">
-                      <div className="p-2 bg-green-100 rounded-lg mr-3 dark:bg-green-900/30">
-                        <span className="text-green-600 text-lg">📱</span>
+                      <div className="p-2 bg-purple-100 rounded-lg mr-3 dark:bg-purple-900/30">
+                        <span className="text-purple-600 text-lg">📱</span>
                       </div>
                       <div>
                         <div className="text-sm font-medium text-gray-900 dark:text-white">Telebirr</div>
@@ -318,18 +354,25 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose }) => {
                 {/* Payment Instructions */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 dark:bg-blue-900/20 dark:border-blue-800/30">
                   <h5 className="font-semibold text-blue-900 dark:text-blue-300 mb-2">Payment Instructions</h5>
-                  {paymentMethod === 'bank_transfer' ? (
+                  {paymentMethod === 'cbe' ? (
                     <div className="text-sm text-blue-800 dark:text-blue-300 space-y-1">
                       <p><strong>Bank:</strong> Commercial Bank of Ethiopia</p>
-                      <p><strong>Account Number:</strong> 1000123456789</p>
-                      <p><strong>Account Name:</strong> RentFlow Technologies</p>
-                      <p><strong>Amount:</strong> ${getPrice()} USD</p>
+                      <p><strong>Account Number:</strong> 1000671263468</p>
+                      <p><strong>Account Name:</strong> Seid Abdela</p>
+                      <p><strong>Amount:</strong> ${getPrice().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB</p>
+                    </div>
+                  ) : paymentMethod === 'awash' ? (
+                    <div className="text-sm text-blue-800 dark:text-blue-300 space-y-1">
+                      <p><strong>Bank:</strong> Awash Bank</p>
+                      <p><strong>Account Number:</strong> 2000987654321</p>
+                      <p><strong>Account Name:</strong> Seid Abdela</p>
+                      <p><strong>Amount:</strong> ${getPrice().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB</p>
                     </div>
                   ) : (
                     <div className="text-sm text-blue-800 dark:text-blue-300 space-y-1">
-                      <p><strong>Telebirr Number:</strong> +251911123456</p>
-                      <p><strong>Account Name:</strong> RentFlow Technologies</p>
-                      <p><strong>Amount:</strong> ${getPrice()} USD equivalent in ETB</p>
+                      <p><strong>Telebirr Number:</strong> 0923797665</p>
+                      <p><strong>Account Name:</strong> shakurya kader</p>
+                      <p><strong>Amount:</strong> ${getPrice().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB</p>
                     </div>
                   )}
                 </div>
@@ -351,6 +394,7 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose }) => {
                     accept="image/*,.pdf"
                     onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
                     className="hidden"
+                    required={true}
                   />
                   <label htmlFor="receipt-upload" className="cursor-pointer">
                     <Upload className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
@@ -385,24 +429,24 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose }) => {
                       <div className="flex justify-between items-center">
                         <span className="text-gray-600 dark:text-gray-400">{selectedPlanData.name}</span>
                         <span className="font-semibold text-gray-900 dark:text-white">
-                          ${selectedPlanData.price}/{billingCycle === 'annual' ? 'month' : 'month'}
+                          ${getPrice().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/{billingCycle === 'annual' ? 'year' : 'month'}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-gray-600 dark:text-gray-400">Billing Cycle</span>
                         <span className="text-gray-900 dark:text-white capitalize">{billingCycle}</span>
                       </div>
-                      {billingCycle === 'annual' && (
+                      {billingCycle === 'annual' && getSavings() > 0 && (
                         <div className="flex justify-between items-center text-green-600 dark:text-green-400">
-                          <span>Annual Discount (2 months free)</span>
-                          <span>-${getSavings()}</span>
+                          <span>Annual Discount</span>
+                          <span>-${getSavings().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
                       )}
                       <hr className="my-2 border-gray-200 dark:border-gray-700" />
                       <div className="flex justify-between items-center font-semibold">
                         <span className="text-gray-900 dark:text-white">Total</span>
                         <span className="text-gray-900 dark:text-white">
-                          ${getPrice()}/{billingCycle === 'annual' ? 'year' : 'month'}
+                          ${getPrice().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/{billingCycle === 'annual' ? 'year' : 'month'}
                         </span>
                       </div>
                     </div>

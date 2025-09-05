@@ -6,9 +6,11 @@ import { TenantCard } from './components/TenantCard';
 import { TenantFormModal } from './components/TenantFormModal';
 import { TerminateTenantModal } from './components/TerminateTenantModal';
 import { TenantDetailsModal } from './components/TenantDetailsModal';
+import { useApiWithLimitCheck } from '../../hooks/useApiWithLimitCheck';
 
 const TenantsPage: React.FC = () => {
   const { token } = useAuth();
+  const { apiCall } = useApiWithLimitCheck();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [terminatedTenants, setTerminatedTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,14 +59,16 @@ const TenantsPage: React.FC = () => {
 
   const fetchTenants = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/tenants', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setTenants(data.tenants);
+      const response = await apiCall(
+        () => fetch('http://localhost:5000/api/tenants', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+        'tenants'
+      );
+      if (response && response.tenants) {
+        setTenants(response.tenants);
       }
     } catch (error) {
       console.error('Failed to fetch tenants:', error);
@@ -75,14 +79,16 @@ const TenantsPage: React.FC = () => {
 
   const fetchTerminatedTenants = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/tenants/terminated', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setTerminatedTenants(data.tenants || []);
+      const response = await apiCall(
+        () => fetch('http://localhost:5000/api/tenants/terminated', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+        'tenants'
+      );
+      if (response && response.tenants) {
+        setTerminatedTenants(response.tenants || []);
       }
     } catch (error) {
       console.error('Failed to fetch terminated tenants:', error);
@@ -97,26 +103,27 @@ const TenantsPage: React.FC = () => {
         : 'http://localhost:5000/api/tenants';
       const method = editingTenant ? 'PUT' : 'POST';
       
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(formData),
-      });
-      if (response.ok) {
+      const response = await apiCall(
+        () => fetch(url, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(formData),
+        }),
+        'tenants'
+      );
+      
+      if (response && response.tenant) {
         setShowAddModal(false);
         setEditingTenant(null);
         resetForm();
         fetchTenants();
-      } else {
-        const errorData = await response.json();
-        alert(errorData.message || 'Failed to save tenant');
       }
     } catch (error) {
       console.error('Failed to save tenant:', error);
-      alert('Failed to save tenant');
+      alert("Failed to save tenant")
     }
   };
 
@@ -181,13 +188,17 @@ const TenantsPage: React.FC = () => {
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this tenant?')) {
       try {
-        const response = await fetch(`http://localhost:5000/api/tenants/${id}`, {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        if (response.ok) {
+        const response = await apiCall(
+          () => fetch(`http://localhost:5000/api/tenants/${id}`, {
+            method: 'DELETE',
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }),
+          'tenants'
+        );
+        
+        if (response && response.success) {
           fetchTenants();
         }
       } catch (error) {
@@ -205,15 +216,19 @@ const TenantsPage: React.FC = () => {
     e.preventDefault();
     if (!terminatingTenant) return;
     try {
-      const response = await fetch(`http://localhost:5000/api/tenants/${terminatingTenant.id}/terminate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(terminationFormData),
-      });
-      if (response.ok) {
+      const response = await apiCall(
+        () => fetch(`http://localhost:5000/api/tenants/${terminatingTenant.id}/terminate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(terminationFormData),
+        }),
+        'tenants'
+      );
+      
+      if (response && response.tenant) {
         setShowTerminateModal(false);
         setTerminatingTenant(null);
         setTerminationFormData({
@@ -380,18 +395,18 @@ const TenantsPage: React.FC = () => {
 
       {/* Terminate Modal */}
       <TerminateTenantModal
-  isOpen={showTerminateModal}
-  onClose={() => {
-    setShowTerminateModal(false);
-    setTerminatingTenant(null);
-  }}
-  onSubmit={handleTerminationSubmit}
-  formData={terminationFormData}
-  onFormChange={(data) => setTerminationFormData(prev => ({ ...prev, ...data }))}
-  tenantName={terminatingTenant?.full_name || ''}
-  tenantId={terminatingTenant?.id}
-  token={token}
-/>
+        isOpen={showTerminateModal}
+        onClose={() => {
+          setShowTerminateModal(false);
+          setTerminatingTenant(null);
+        }}
+        onSubmit={handleTerminationSubmit}
+        formData={terminationFormData}
+        onFormChange={(data) => setTerminationFormData(prev => ({ ...prev, ...data }))}
+        tenantName={terminatingTenant?.full_name || ''}
+        tenantId={terminatingTenant?.id}
+        token={token}
+      />
       {/* Add/Edit Modal */}
       <TenantFormModal
         show={showAddModal || editingTenant != null}

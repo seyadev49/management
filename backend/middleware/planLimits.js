@@ -33,8 +33,8 @@ const checkPlanLimit = (feature) => {
 
       // Get plan limits
       const planLimits = {
-        basic: { properties: 3, tenants: 50, documents: 100, maintenance_requests: 50 },
-        professional: { properties: 20, tenants: 200, documents: 500, maintenance_requests: 200 },
+        basic: { properties: 3, tenants: 25, documents: 100, maintenance_requests: 50 },
+        professional: { properties: 10, tenants: 100, documents: 500, maintenance_requests: 200 },
         enterprise: { properties: -1, tenants: -1, documents: -1, maintenance_requests: -1 }
       };
 

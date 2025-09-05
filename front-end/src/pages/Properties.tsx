@@ -7,11 +7,13 @@ import { AddUnitModal } from '../features/properties/components/AddUnitModal';
 import { UnitsModal } from '../features/properties/components/UnitsModal';
 import { PropertyCard } from '../features/properties/components/PropertyCard';
 import { ContractFormModal } from '../features/properties/components/ContractFormModal';
+import { useApiWithLimitCheck } from '../hooks/useApiWithLimitCheck';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 
 const Properties: React.FC = () => {
     const { token } = useAuth();
+    const { apiCall } = useApiWithLimitCheck();
 
     // Component State
     const [properties, setProperties] = useState<Property[]>([]);
@@ -31,10 +33,10 @@ const Properties: React.FC = () => {
     const [isEditingUnit, setIsEditingUnit] = useState(false); // Track if we're editing an existing unit
 
     // Add this state to your Properties component
-const [contractError, setContractError] = useState<string | null>(null);
-
+    const [contractError, setContractError] = useState<string | null>(null);
 
     const [error, setError] = useState<string | null>(null);
+    
     // Form Data State
     const initialPropertyFormData = { 
         name: '', 
@@ -80,50 +82,56 @@ const [contractError, setContractError] = useState<string | null>(null);
     const fetchProperties = useCallback(async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/properties`, { 
-                headers: { Authorization: `Bearer ${token}` } 
-            });
-            if (response.ok) {
-                const data = await response.json();
-                setProperties(data.properties);
+            const response = await apiCall(
+                () => fetch(`${API_BASE_URL}/properties`, { 
+                    headers: { Authorization: `Bearer ${token}` } 
+                }),
+                'properties'
+            );
+            
+            if (response && response.properties) {
+                setProperties(response.properties);
             }
         } catch (error) {
             console.error('Failed to fetch properties:', error);
         } finally {
             setLoading(false);
         }
-    }, [token]);
+    }, [token, apiCall]);
 
     const fetchTenants = useCallback(async () => {
         try {
-            const response = await fetch(`${API_BASE_URL}/tenants`, { 
-                headers: { Authorization: `Bearer ${token}` } 
-            });
-            if (response.ok) {
-                const data = await response.json();
-                setTenants(data.tenants);
+            const response = await apiCall(
+                () => fetch(`${API_BASE_URL}/tenants`, { 
+                    headers: { Authorization: `Bearer ${token}` } 
+                }),
+                'tenants'
+            );
+            
+            if (response && response.tenants) {
+                setTenants(response.tenants);
             }
         } catch (error) {
             console.error('Failed to fetch tenants:', error);
         }
-    }, [token]);
+    }, [token, apiCall]);
 
     const fetchPropertyUnits = async (propertyId: number) => {
         try {
             setIsUnitsLoading(true);
-            const response = await fetch(`${API_BASE_URL}/units?propertyId=${propertyId}`, { 
-                headers: { 
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                } 
-            });
+            const response = await apiCall(
+                () => fetch(`${API_BASE_URL}/units?propertyId=${propertyId}`, { 
+                    headers: { 
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    } 
+                }),
+                'units'
+            );
             
-            if (response.ok) {
-                const data = await response.json();
-               
-                setPropertyUnits(data.units || []);
+            if (response && response.units) {
+                setPropertyUnits(response.units || []);
             } else {
-                console.log('API Error Response:', await response.text());
                 setPropertyUnits([]);
             }
         } catch (error) {
@@ -136,12 +144,15 @@ const [contractError, setContractError] = useState<string | null>(null);
 
     const fetchAvailableUnits = async (propertyId: number) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/units?propertyId=${propertyId}`, { 
-                headers: { Authorization: `Bearer ${token}` } 
-            });
-            if (response.ok) {
-                const data = await response.json();
-                const vacantUnits = data.units?.filter((unit: Unit) => !unit.is_occupied) || [];
+            const response = await apiCall(
+                () => fetch(`${API_BASE_URL}/units?propertyId=${propertyId}`, { 
+                    headers: { Authorization: `Bearer ${token}` } 
+                }),
+                'units'
+            );
+            
+            if (response && response.units) {
+                const vacantUnits = response.units?.filter((unit: Unit) => !unit.is_occupied) || [];
                 setAvailableUnits(vacantUnits);
             }
         } catch (error) {
@@ -172,23 +183,24 @@ const [contractError, setContractError] = useState<string | null>(null);
         const method = selectedProperty ? 'PUT' : 'POST';
 
         try {
-            const response = await fetch(url, {
-                method,
-                headers: { 
-                    'Content-Type': 'application/json', 
-                    Authorization: `Bearer ${token}` 
-                },
-                body: JSON.stringify(propertyFormData),
-            });
+            const response = await apiCall(
+                () => fetch(url, {
+                    method,
+                    headers: { 
+                        'Content-Type': 'application/json', 
+                        Authorization: `Bearer ${token}` 
+                    },
+                    body: JSON.stringify(propertyFormData),
+                }),
+                'properties'
+            );
 
-            if (response.ok) {
-                const data = await response.json();
-                console.log('Property saved:', data);
+            if (response && response.property) {
+                console.log('Property saved:', response);
                 fetchProperties();
                 setPropertyModalOpen(false);
             } else {
-                const errorData = await response.json();
-                console.error('Failed to save property:', errorData);
+                console.error('Failed to save property:', response);
             }
         } catch (error) {
             console.error('Failed to save property:', error);
@@ -201,7 +213,6 @@ const [contractError, setContractError] = useState<string | null>(null);
         setSelectedProperty(property);
         await fetchPropertyUnits(property.id);
         setUnitsViewerModalOpen(true);
-       
     };
     
     const handleAddUnit = (property: Property, unitToEdit?: Unit) => {
@@ -245,24 +256,26 @@ const [contractError, setContractError] = useState<string | null>(null);
                 : `${API_BASE_URL}/units`;
             const method = isEditingUnit ? 'PUT' : 'POST';
 
-            const response = await fetch(url, {
-                method,
-                headers: { 
-                    'Content-Type': 'application/json', 
-                    Authorization: `Bearer ${token}` 
-                },
-                body: JSON.stringify({
-                    ...unitFormData,
-                    floorNumber: unitFormData.floorNumber ? parseInt(unitFormData.floorNumber, 10) : null,
-                    roomCount: unitFormData.roomCount ? parseInt(unitFormData.roomCount, 10) : null,
-                    monthlyRent: parseFloat(unitFormData.monthlyRent),
-                    deposit: parseFloat(unitFormData.deposit),
+            const response = await apiCall(
+                () => fetch(url, {
+                    method,
+                    headers: { 
+                        'Content-Type': 'application/json', 
+                        Authorization: `Bearer ${token}` 
+                    },
+                    body: JSON.stringify({
+                        ...unitFormData,
+                        floorNumber: unitFormData.floorNumber ? parseInt(unitFormData.floorNumber, 10) : null,
+                        roomCount: unitFormData.roomCount ? parseInt(unitFormData.roomCount, 10) : null,
+                        monthlyRent: parseFloat(unitFormData.monthlyRent),
+                        deposit: parseFloat(unitFormData.deposit),
+                    }),
                 }),
-            });
+                'units'
+            );
 
-            if (response.ok) {
-                const data = await response.json();
-                console.log('Unit saved:', data);
+            if (response && response.unit) {
+                console.log('Unit saved:', response);
                 setUnitModalOpen(false);
                 setIsEditingUnit(false);
                 setUnitFormData(initialUnitFormData);
@@ -271,8 +284,7 @@ const [contractError, setContractError] = useState<string | null>(null);
                     fetchPropertyUnits(selectedProperty.id);
                 }
             } else {
-                const errorData = await response.json();
-                console.error('Failed to save unit:', errorData);
+                console.error('Failed to save unit:', response);
             }
         } catch (error) {
             console.error('Failed to save unit:', error);
@@ -288,39 +300,41 @@ const [contractError, setContractError] = useState<string | null>(null);
         setContractModalOpen(true);
     };
 
-// Update the handleContractSubmit function
-const handleContractSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormLoading(true);
-    try {
-        const response = await fetch(`${API_BASE_URL}/contracts`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json', 
-                Authorization: `Bearer ${token}` 
-            },
-            body: JSON.stringify(contractFormData),
-        });
+    // Update the handleContractSubmit function
+    const handleContractSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setFormLoading(true);
+        try {
+            const response = await apiCall(
+                () => fetch(`${API_BASE_URL}/contracts`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json', 
+                        Authorization: `Bearer ${token}` 
+                    },
+                    body: JSON.stringify(contractFormData),
+                }),
+                'contracts'
+            );
 
-        if (response.ok) {
-            const data = await response.json();
-            console.log('Contract created:', data);
-            fetchProperties();
-            setContractModalOpen(false);
-            setContractError(null); // Clear error on success
-        } else {
-            const errorData = await response.json();
-            console.error('Failed to create contract:', errorData);
-            // Show error message to user
-            setContractError(errorData.message || 'Failed to create contract');
+            if (response && response.contract) {
+                console.log('Contract created:', response);
+                fetchProperties();
+                setContractModalOpen(false);
+                setContractError(null); // Clear error on success
+            } else {
+                const errorData = response || { message: 'Failed to create contract' };
+                console.error('Failed to create contract:', errorData);
+                // Show error message to user
+                setContractError(errorData.message || 'Failed to create contract');
+            }
+        } catch (error) {
+            console.error('Failed to create contract:', error);
+            setContractError('Network error occurred');
+        } finally {
+            setFormLoading(false);
         }
-    } catch (error) {
-        console.error('Failed to create contract:', error);
-        setContractError('Network error occurred');
-    } finally {
-        setFormLoading(false);
-    }
-};
+    };
 
     const handleContractInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -358,17 +372,20 @@ const handleContractSubmit = async (e: React.FormEvent) => {
     const handleDelete = async (property: Property) => {
         if (window.confirm(`Are you sure you want to delete ${property.name}?`)) {
             try {
-                const response = await fetch(`${API_BASE_URL}/properties/${property.id}`, {
-                    method: 'DELETE',
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                });
+                const response = await apiCall(
+                    () => fetch(`${API_BASE_URL}/properties/${property.id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                        },
+                    }),
+                    'properties'
+                );
                 
-                if (response.ok) {
+                if (response && response.success) {
                     fetchProperties(); // Refresh the list
                 } else {
-                    const errorData = await response.json();
+                    const errorData = response || { message: 'Failed to delete property' };
                     alert(errorData.message || 'Failed to delete property');
                 }
             } catch (error) {
@@ -381,21 +398,24 @@ const handleContractSubmit = async (e: React.FormEvent) => {
     const handleDeleteUnit = async (unit: Unit) => {
         if (window.confirm(`Are you sure you want to delete Unit ${unit.unit_number}?`)) {
             try {
-                const response = await fetch(`${API_BASE_URL}/units/${unit.id}`, {
-                    method: 'DELETE',
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                });
+                const response = await apiCall(
+                    () => fetch(`${API_BASE_URL}/units/${unit.id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                        },
+                    }),
+                    'units'
+                );
                 
-                if (response.ok) {
+                if (response && response.success) {
                     // Refresh units list
                     if (selectedProperty) {
                         fetchPropertyUnits(selectedProperty.id);
                     }
                     fetchProperties(); // Also refresh properties to update counts
                 } else {
-                    const errorData = await response.json();
+                    const errorData = response || { message: 'Failed to delete unit' };
                     alert(errorData.message || 'Failed to delete unit');
                 }
             } catch (error) {
@@ -497,21 +517,21 @@ const handleContractSubmit = async (e: React.FormEvent) => {
                         }}
                         onDeleteUnit={handleDeleteUnit}
                     />
-<ContractFormModal
-    isOpen={isContractModalOpen}
-    onClose={() => {
-        setContractModalOpen(false);
-        setSelectedProperty(null);
-        setContractError(null); // Clear error when closing
-    }}
-    onSubmit={handleContractSubmit}
-    formData={contractFormData}
-    onInputChange={handleContractInputChange}
-    propertyName={selectedProperty.name}
-    availableUnits={availableUnits}
-    tenants={tenants}
-    error={contractError} // Pass the error here
-/>
+                    <ContractFormModal
+                        isOpen={isContractModalOpen}
+                        onClose={() => {
+                            setContractModalOpen(false);
+                            setSelectedProperty(null);
+                            setContractError(null); // Clear error when closing
+                        }}
+                        onSubmit={handleContractSubmit}
+                        formData={contractFormData}
+                        onInputChange={handleContractInputChange}
+                        propertyName={selectedProperty.name}
+                        availableUnits={availableUnits}
+                        tenants={tenants}
+                        error={contractError} // Pass the error here
+                    />
                 </>
             )}
         </div>
