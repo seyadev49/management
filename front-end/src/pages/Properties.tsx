@@ -8,6 +8,7 @@ import { UnitsModal } from '../features/properties/components/UnitsModal';
 import { PropertyCard } from '../features/properties/components/PropertyCard';
 import { ContractFormModal } from '../features/properties/components/ContractFormModal';
 import { useApiWithLimitCheck } from '../hooks/useApiWithLimitCheck';
+import toast from 'react-hot-toast'; // ✅ Import toast
 
 const API_BASE_URL = 'http://localhost:5000/api';
 
@@ -30,13 +31,10 @@ const Properties: React.FC = () => {
     const [isUnitModalOpen, setUnitModalOpen] = useState(false);
     const [isUnitsViewerModalOpen, setUnitsViewerModalOpen] = useState(false);
     const [isContractModalOpen, setContractModalOpen] = useState(false);
-    const [isEditingUnit, setIsEditingUnit] = useState(false); // Track if we're editing an existing unit
+    const [isEditingUnit, setIsEditingUnit] = useState(false);
 
-    // Add this state to your Properties component
     const [contractError, setContractError] = useState<string | null>(null);
 
-    const [error, setError] = useState<string | null>(null);
-    
     // Form Data State
     const initialPropertyFormData = { 
         name: '', 
@@ -142,6 +140,7 @@ const Properties: React.FC = () => {
         }
     };
 
+
     const fetchAvailableUnits = async (propertyId: number) => {
         try {
             const response = await apiCall(
@@ -196,7 +195,6 @@ const Properties: React.FC = () => {
             );
 
             if (response && response.property) {
-                console.log('Property saved:', response);
                 fetchProperties();
                 setPropertyModalOpen(false);
             } else {
@@ -219,7 +217,6 @@ const Properties: React.FC = () => {
         setSelectedProperty(property);
         
         if (unitToEdit) {
-            // Editing an existing unit
             setIsEditingUnit(true);
             setUnitFormData({
                 id: unitToEdit.id.toString(),
@@ -231,7 +228,6 @@ const Properties: React.FC = () => {
                 deposit: unitToEdit.deposit.toString(),
             });
         } else {
-            // Adding a new unit
             setIsEditingUnit(false);
             setUnitFormData({
                 id: '',
@@ -275,7 +271,6 @@ const Properties: React.FC = () => {
             );
 
             if (response && response.unit) {
-                console.log('Unit saved:', response);
                 setUnitModalOpen(false);
                 setIsEditingUnit(false);
                 setUnitFormData(initialUnitFormData);
@@ -300,10 +295,29 @@ const Properties: React.FC = () => {
         setContractModalOpen(true);
     };
 
-    // Update the handleContractSubmit function
+    // ✅ IMPROVED: Auto-close, toast, and refresh
     const handleContractSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setFormLoading(true);
+        setContractError(null);
+
+        // Optional: Optimistic UI update (uncomment if you want instant feedback)
+        /*
+        if (selectedProperty) {
+            setProperties(prev => 
+                prev.map(p => 
+                    p.id === selectedProperty.id 
+                        ? { 
+                            ...p, 
+                            occupied_units: p.occupied_units + 1,
+                            vacant_units: Math.max(0, p.vacant_units - 1)
+                            } 
+                        : p
+                )
+            );
+        }
+        */
+
         try {
             const response = await apiCall(
                 () => fetch(`${API_BASE_URL}/contracts`, {
@@ -318,19 +332,47 @@ const Properties: React.FC = () => {
             );
 
             if (response && response.contract) {
-                console.log('Contract created:', response);
-                fetchProperties();
+                // ✅ Show success toast
+                toast.success('✅ Contract created successfully!', {
+                    duration: 3000,
+                    position: 'top-center',
+                });
+
+                // ✅ Close modal
                 setContractModalOpen(false);
-                setContractError(null); // Clear error on success
+
+                // ✅ Refresh property data to update UI
+                fetchProperties();
+
+                // Reset form (optional, since modal closes)
+                setContractFormData({ ...initialContractFormData, propertyId: selectedProperty?.id.toString() || '' });
+
             } else {
-                const errorData = response || { message: 'Failed to create contract' };
-                console.error('Failed to create contract:', errorData);
-                // Show error message to user
-                setContractError(errorData.message || 'Failed to create contract');
+                throw new Error(response?.message || 'Failed to create contract');
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to create contract:', error);
-            setContractError('Network error occurred');
+
+            // ❌ Rollback optimistic update if you enabled it
+            /*
+            if (selectedProperty) {
+                setProperties(prev => 
+                    prev.map(p => 
+                        p.id === selectedProperty.id 
+                            ? { 
+                                ...p, 
+                                occupied_units: p.occupied_units - 1,
+                                vacant_units: p.vacant_units + 1
+                                } 
+                            : p
+                    )
+                );
+            }
+            */
+
+            const errorMessage = error.message || 'Failed to create contract';
+            setContractError(errorMessage);
+            toast.error('❌ ' + errorMessage);
         } finally {
             setFormLoading(false);
         }
@@ -383,7 +425,7 @@ const Properties: React.FC = () => {
                 );
                 
                 if (response && response.success) {
-                    fetchProperties(); // Refresh the list
+                    fetchProperties();
                 } else {
                     const errorData = response || { message: 'Failed to delete property' };
                     alert(errorData.message || 'Failed to delete property');
@@ -409,11 +451,10 @@ const Properties: React.FC = () => {
                 );
                 
                 if (response && response.success) {
-                    // Refresh units list
                     if (selectedProperty) {
                         fetchPropertyUnits(selectedProperty.id);
                     }
-                    fetchProperties(); // Also refresh properties to update counts
+                    fetchProperties();
                 } else {
                     const errorData = response || { message: 'Failed to delete unit' };
                     alert(errorData.message || 'Failed to delete unit');
@@ -506,12 +547,10 @@ const Properties: React.FC = () => {
                         units={propertyUnits}
                         propertyName={selectedProperty.name}
                         onAddUnit={() => {
-                            // CRITICAL FIX: Close the Units Viewer Modal first before opening the Add Unit Modal
                             setUnitsViewerModalOpen(false);
                             handleAddUnit(selectedProperty);
                         }}
                         onEditUnit={(unit) => {
-                            // Close units viewer modal and open edit unit modal
                             setUnitsViewerModalOpen(false);
                             handleAddUnit(selectedProperty!, unit);
                         }}
@@ -522,7 +561,7 @@ const Properties: React.FC = () => {
                         onClose={() => {
                             setContractModalOpen(false);
                             setSelectedProperty(null);
-                            setContractError(null); // Clear error when closing
+                            setContractError(null);
                         }}
                         onSubmit={handleContractSubmit}
                         formData={contractFormData}
@@ -530,7 +569,7 @@ const Properties: React.FC = () => {
                         propertyName={selectedProperty.name}
                         availableUnits={availableUnits}
                         tenants={tenants}
-                        error={contractError} // Pass the error here
+                        error={contractError}
                     />
                 </>
             )}

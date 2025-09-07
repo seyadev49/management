@@ -31,7 +31,7 @@ interface ContractFormModalProps {
     propertyName: string;
     availableUnits: Unit[];
     tenants: Tenant[];
-    error?: string; // Add error prop
+    error?: any; // Add error prop
 }
 
 export const ContractFormModal: React.FC<ContractFormModalProps> = ({
