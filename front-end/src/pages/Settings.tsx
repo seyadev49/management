@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Settings as User, Building2, Bell, Edit2, Save, X, Crown, Calendar, CreditCard } from 'lucide-react';
+import { Settings as User, Building2, Bell, Edit2, Save, X, Crown, Calendar, CreditCard, RefreshCw } from 'lucide-react';
 import UpgradeModal from '../components/UpgradeModal';
+import RenewSubscriptionModal from '../components/RenewSubscriptionModal';
 
 interface SubscriptionDetails {
   subscription_status: string;
@@ -17,6 +18,7 @@ const Settings: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [isEditingOrganization, setIsEditingOrganization] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showRenewModal, setShowRenewModal] = useState(false);
   const [subscriptionDetails, setSubscriptionDetails] = useState<SubscriptionDetails | null>(null);
   const [profileData, setProfileData] = useState({
     fullName: user?.fullName || '',
@@ -473,12 +475,30 @@ const Settings: React.FC = () => {
 
               {/* Upgrade Button */}
               <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                <button
-                  onClick={() => setShowUpgradeModal(true)}
-                  className="w-full px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all duration-200 font-medium dark:from-blue-600 dark:to-purple-700"
-                >
-                  Upgrade Plan
-                </button>
+                <div className="space-y-2">
+                  {/* Show Renew button if renewal is due within 30 days or overdue */}
+                  {subscriptionDetails.daysUntilRenewal <= 30 && (
+                    <button
+                      onClick={() => setShowRenewModal(true)}
+                      className={`w-full px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center ${
+                        subscriptionDetails.daysUntilRenewal <= 0
+                          ? 'bg-red-600 hover:bg-red-700 text-white'
+                          : subscriptionDetails.daysUntilRenewal <= 7
+                          ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                          : 'bg-blue-600 hover:bg-blue-700 text-white'
+                      }`}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      {subscriptionDetails.daysUntilRenewal <= 0 ? 'Renew Now (Overdue)' : 'Renew Subscription'}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowUpgradeModal(true)}
+                    className="w-full px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all duration-200 font-medium dark:from-blue-600 dark:to-purple-700"
+                  >
+                    Upgrade Plan
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
@@ -634,6 +654,17 @@ const Settings: React.FC = () => {
       <UpgradeModal 
         isOpen={showUpgradeModal} 
         onClose={() => setShowUpgradeModal(false)} 
+      />
+
+      {/* Renew Subscription Modal */}
+      <RenewSubscriptionModal
+        isOpen={showRenewModal}
+        onClose={() => setShowRenewModal(false)}
+        subscriptionDetails={subscriptionDetails}
+        onRenewSuccess={() => {
+          setShowRenewModal(false);
+          fetchSubscriptionDetails();
+        }}
       />
     </div>
   );

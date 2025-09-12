@@ -16,7 +16,7 @@ router.use(logActivity());     // Logs every request after auth
 
 router.get('/plans', authenticateToken, getSubscriptionPlans);
 router.post('/upgrade', authenticateToken, upload.single('receipt'), upgradeSubscription);
-router.post('/renew', authenticateToken, renewSubscription);
+router.post('/renew', authenticateToken, upload.single('receipt'), renewSubscription);
 router.get('/status', authenticateToken, getSubscriptionStatus);
 router.get('/check-limits/:feature', authenticateToken, checkPlanLimits);
 

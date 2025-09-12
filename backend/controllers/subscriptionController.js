@@ -197,6 +197,10 @@ const upgradeSubscription = async (req, res) => {
 const renewSubscription = async (req, res) => {
   try {
     const { paymentMethod } = req.body;
+    
+    if (!req.file) {
+      return res.status(400).json({ message: 'Payment receipt is required' });
+    }
 
     // Get current subscription details
     const [organizations] = await db.execute(
@@ -228,9 +232,10 @@ const renewSubscription = async (req, res) => {
     }
 
     // Update organization subscription status
+    // Set status to 'pending_verification' until receipt is verified
     await db.execute(
       `UPDATE organizations 
-       SET subscription_status = 'active',
+       SET subscription_status = 'pending_verification',
            next_renewal_date = ?,
            overdue_since = NULL
        WHERE id = ?`,
@@ -239,13 +244,13 @@ const renewSubscription = async (req, res) => {
 
     // Create renewal record
     await db.execute(
-      `INSERT INTO subscription_history (organization_id, plan_id, amount, payment_method, billing_cycle, status, start_date, end_date) 
-       VALUES (?, ?, ?, ?, ?, 'active', CURDATE(), ?)`,
-      [req.user.organization_id, org.subscription_plan, org.subscription_price, paymentMethod, org.billing_cycle, nextRenewalDate]
+      `INSERT INTO subscription_history (organization_id, plan_id, amount, payment_method, billing_cycle, status, start_date, end_date, receipt_path) 
+       VALUES (?, ?, ?, ?, ?, 'pending_verification', CURDATE(), ?, ?)`,
+      [req.user.organization_id, org.subscription_plan, org.subscription_price, paymentMethod, org.billing_cycle, nextRenewalDate, req.file.path]
     );
 
     res.json({
-      message: 'Subscription renewed successfully',
+      message: 'Subscription renewal request submitted successfully. We will verify your payment and extend your subscription within 24 hours.',
       nextRenewalDate
     });
   } catch (error) {
