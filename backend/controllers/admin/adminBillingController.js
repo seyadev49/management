@@ -391,6 +391,7 @@ const verifySubscription = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
 // Download receipt file
 const downloadReceipt = async (req, res) => {
   try {
@@ -470,6 +471,7 @@ const downloadReceipt = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
 module.exports = {
   getBillingOverview,
   getAllSubscriptions,
