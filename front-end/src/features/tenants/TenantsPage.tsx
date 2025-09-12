@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Users, Plus } from 'lucide-react';
 import { Tenant } from './types';
@@ -7,21 +7,28 @@ import { TenantFormModal } from './components/TenantFormModal';
 import { TerminateTenantModal } from './components/TerminateTenantModal';
 import { TenantDetailsModal } from './components/TenantDetailsModal';
 import { useApiWithLimitCheck } from '../../hooks/useApiWithLimitCheck';
+import toast from 'react-hot-toast';
 
 const TenantsPage: React.FC = () => {
   const { token } = useAuth();
   const { apiCall } = useApiWithLimitCheck();
+
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [terminatedTenants, setTerminatedTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAddModal, setShowAddModal] = useState(false)
+  const [formLoading, setFormLoading] = useState(false);
+
+  const [showAddModal, setShowAddModal] = useState(false);
   const [showTerminateModal, setShowTerminateModal] = useState(false);
   const [showTenantModal, setShowTenantModal] = useState(false);
+
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
   const [terminatingTenant, setTerminatingTenant] = useState<Tenant | null>(null);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'active' | 'terminated'>('active');
+
   const [formData, setFormData] = useState({
     tenantId: '',
     fullName: '',
@@ -43,6 +50,7 @@ const TenantsPage: React.FC = () => {
     authenticationNo: '',
     authenticationDate: '',
   });
+
   const [terminationFormData, setTerminationFormData] = useState({
     terminationDate: new Date().toISOString().split('T')[0],
     terminationReason: '',
@@ -52,57 +60,90 @@ const TenantsPage: React.FC = () => {
     notes: '',
   });
 
-  useEffect(() => {
-    fetchTenants();
-    fetchTerminatedTenants();
-  }, [token]);
+  // ✅ SMART HELPER: Detect if tenant is terminated (handles multiple field names)
+  const isTenantTerminated = (tenant: Tenant): boolean => {
+    return !!(tenant.termination_date || tenant.terminated_at || tenant.endDate || tenant.status === 'terminated');
+  };
 
-  const fetchTenants = async () => {
+  const isTenantActive = (tenant: Tenant): boolean => {
+    return !isTenantTerminated(tenant);
+  };
+
+  // ✅ FETCH ACTIVE TENANTS — filter out any terminated ones
+  const fetchTenants = useCallback(async () => {
     try {
       const response = await apiCall(
         () => fetch('http://localhost:5000/api/tenants', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         }),
         'tenants'
       );
       if (response && response.tenants) {
-        setTenants(response.tenants);
+        const activeOnly = response.tenants.filter(isTenantActive);
+        setTenants(activeOnly);
+      } else {
+        setTenants([]);
       }
     } catch (error) {
       console.error('Failed to fetch tenants:', error);
+      toast.error('❌ Failed to load active tenants');
+      setTenants([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [token, apiCall]);
 
-  const fetchTerminatedTenants = async () => {
+  // ✅ FETCH TERMINATED TENANTS — ensure only terminated
+  const fetchTerminatedTenants = useCallback(async () => {
     try {
       const response = await apiCall(
         () => fetch('http://localhost:5000/api/tenants/terminated', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         }),
         'tenants'
       );
       if (response && response.tenants) {
-        setTerminatedTenants(response.tenants || []);
+        const terminatedOnly = response.tenants.filter(isTenantTerminated);
+        setTerminatedTenants(terminatedOnly);
+      } else {
+        setTerminatedTenants([]);
       }
     } catch (error) {
       console.error('Failed to fetch terminated tenants:', error);
+      toast.error('❌ Failed to load terminated tenants');
+      setTerminatedTenants([]);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [token, apiCall]);
+
+ useEffect(() => {
+  setLoading(true);
+  if (activeTab === 'active') {
+    fetchTenants().finally(() => setLoading(false));
+  } else {
+    fetchTerminatedTenants().finally(() => setLoading(false));
+  }
+}, [activeTab, fetchTenants, fetchTerminatedTenants]);
+
+  // 🚨 DEBUG: Log tenant data in dev mode
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 [DEBUG] Active Tenants Raw:', tenants);
+      console.log('🔍 [DEBUG] Terminated Tenants Raw:', terminatedTenants);
+    }
+  }, [tenants, terminatedTenants]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormLoading(true);
+
     try {
-      const url = editingTenant 
+      const url = editingTenant
         ? `http://localhost:5000/api/tenants/${editingTenant.id}`
         : 'http://localhost:5000/api/tenants';
       const method = editingTenant ? 'PUT' : 'POST';
-      
+
       const response = await apiCall(
         () => fetch(url, {
           method,
@@ -114,16 +155,21 @@ const TenantsPage: React.FC = () => {
         }),
         'tenants'
       );
-      
-      if (response && response.tenant) {
+
+      if (response && (response.tenant || response.message?.includes("successfully"))) {
+        toast.success(editingTenant ? '✅ Tenant updated successfully!' : '✅ Tenant added successfully!');
         setShowAddModal(false);
         setEditingTenant(null);
         resetForm();
         fetchTenants();
+      } else {
+        throw new Error(response?.message || 'Failed to save tenant');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to save tenant:', error);
-      alert("Failed to save tenant")
+      toast.error('❌ ' + (error.message || 'Failed to save tenant'));
+    } finally {
+      setFormLoading(false);
     }
   };
 
@@ -187,22 +233,28 @@ const TenantsPage: React.FC = () => {
 
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this tenant?')) {
+      setFormLoading(true);
       try {
         const response = await apiCall(
           () => fetch(`http://localhost:5000/api/tenants/${id}`, {
             method: 'DELETE',
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+            headers: { Authorization: `Bearer ${token}` },
           }),
           'tenants'
         );
-        
-        if (response && response.success) {
+
+        if (response && (response.success || response.message?.includes("successfully"))) {
+          toast.success('✅ Tenant deleted successfully!');
           fetchTenants();
+          fetchTerminatedTenants();
+        } else {
+          throw new Error(response?.message || 'Failed to delete tenant');
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to delete tenant:', error);
+        toast.error('❌ ' + (error.message || 'Failed to delete tenant'));
+      } finally {
+        setFormLoading(false);
       }
     }
   };
@@ -215,6 +267,8 @@ const TenantsPage: React.FC = () => {
   const handleTerminationSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!terminatingTenant) return;
+    setFormLoading(true);
+
     try {
       const response = await apiCall(
         () => fetch(`http://localhost:5000/api/tenants/${terminatingTenant.id}/terminate`, {
@@ -227,24 +281,43 @@ const TenantsPage: React.FC = () => {
         }),
         'tenants'
       );
-      
-      if (response && response.tenant) {
+
+      if (response && (response.tenant || response.message?.includes("successfully"))) {
+        toast.success('✅ Tenant terminated successfully!');
+
+        // ✅ Remove from active list
+        setTenants(prev => prev.filter(t => t.id !== terminatingTenant.id));
+        // ✅ Add to terminated list
+        setTerminatedTenants(prev => {
+          if (!prev.some(t => t.id === terminatingTenant.id)) {
+            return [...prev, { ...terminatingTenant, termination_date: terminationFormData.terminationDate }];
+          }
+          return prev;
+        });
+
         setShowTerminateModal(false);
         setTerminatingTenant(null);
-        setTerminationFormData({
-          terminationDate: new Date().toISOString().split('T')[0],
-          terminationReason: '',
-          securityDepositAction: 'return_full',
-          partialReturnAmount: '',
-          deductions: [],
-          notes: '',
-        });
-        fetchTenants();
-        fetchTerminatedTenants();
+        resetTerminationForm();
+      } else {
+        throw new Error(response?.message || 'Failed to terminate tenant');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to terminate tenant:', error);
+      toast.error('❌ ' + (error.message || 'Failed to terminate tenant'));
+    } finally {
+      setFormLoading(false);
     }
+  };
+
+  const resetTerminationForm = () => {
+    setTerminationFormData({
+      terminationDate: new Date().toISOString().split('T')[0],
+      terminationReason: '',
+      securityDepositAction: 'return_full',
+      partialReturnAmount: '',
+      deductions: [],
+      notes: '',
+    });
   };
 
   const addDeduction = () => {
@@ -253,12 +326,14 @@ const TenantsPage: React.FC = () => {
       deductions: [...terminationFormData.deductions, { description: '', amount: 0 }],
     });
   };
+
   const removeDeduction = (index: number) => {
     setTerminationFormData({
       ...terminationFormData,
       deductions: terminationFormData.deductions.filter((_, i) => i !== index),
     });
   };
+
   const updateDeduction = (index: number, field: 'description' | 'amount', value: string | number) => {
     const updatedDeductions = [...terminationFormData.deductions];
     updatedDeductions[index] = { ...updatedDeductions[index], [field]: value };
@@ -277,6 +352,7 @@ const TenantsPage: React.FC = () => {
       tenant.phone?.includes(searchTerm) ||
       tenant.city?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
   const filteredTerminatedTenants = terminatedTenants.filter(
     (tenant) =>
       tenant.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -313,64 +389,78 @@ const TenantsPage: React.FC = () => {
               setShowAddModal(true);
               setEditingTenant(null);
             }}
-            className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 dark:bg-blue-700 dark:hover:bg-blue-600 w-full sm:w-auto"
+            disabled={formLoading}
+            className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 dark:bg-blue-700 dark:hover:bg-blue-600 w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Plus className="h-4 w-4 mr-2" />
+            {formLoading ? (
+              <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></div>
+            ) : (
+              <Plus className="h-4 w-4 mr-2" />
+            )}
             Add Tenant
           </button>
         </div>
       </div>
+
       {/* Tab Switcher */}
       <div className="border-b border-gray-200 dark:border-gray-700">
         <nav className="-mb-px flex space-x-8">
           <button
             onClick={() => setActiveTab('active')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+            className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
               activeTab === 'active'
                 ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
             }`}
           >
-            Active Tenants ({filteredTenants.length})
+            Active Tenants ({filteredTenants.filter(isTenantActive).length})
           </button>
           <button
             onClick={() => setActiveTab('terminated')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+            className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
               activeTab === 'terminated'
                 ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
             }`}
           >
-            Terminated Tenants ({filteredTerminatedTenants.length})
+            Terminated Tenants ({filteredTerminatedTenants.filter(isTenantTerminated).length})
           </button>
         </nav>
       </div>
-      {/* Tenants Grid */}
+
+      {/* ✅ ULTIMATE SAFE RENDER — Triple-filtered */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {activeTab === 'active'
-          ? filteredTenants.map((tenant) => (
-              <TenantCard
-                key={tenant.id}
-                tenant={tenant}
-                activeTab={activeTab}
-                openTenantModal={openTenantModal}
-                handleEdit={handleEdit}
-                handleTerminate={handleTerminate}
-              />
-            ))
-          : filteredTerminatedTenants.map((tenant) => (
-              <TenantCard
-                key={tenant.id}
-                tenant={tenant}
-                activeTab={activeTab}
-                openTenantModal={openTenantModal}
-                handleEdit={handleEdit}
-                handleTerminate={handleTerminate}
-              />
-            ))}
+          ? filteredTenants
+              .filter(isTenantActive)
+              .map((tenant) => (
+                <TenantCard
+                  key={tenant.id}
+                  tenant={tenant}
+                  activeTab={activeTab}
+                  openTenantModal={openTenantModal}
+                  handleEdit={handleEdit}
+                  handleTerminate={handleTerminate}
+                  handleDelete={handleDelete}
+                />
+              ))
+          : filteredTerminatedTenants
+              .filter(isTenantTerminated)
+              .map((tenant) => (
+                <TenantCard
+                  key={tenant.id}
+                  tenant={tenant}
+                  activeTab={activeTab}
+                  openTenantModal={openTenantModal}
+                  handleEdit={handleEdit}
+                  handleTerminate={handleTerminate}
+                  handleDelete={handleDelete}
+                />
+              ))}
       </div>
-      {((activeTab === 'active' && filteredTenants.length === 0) ||
-        (activeTab === 'terminated' && filteredTerminatedTenants.length === 0)) && (
+
+      {((activeTab === 'active' && filteredTenants.filter(isTenantActive).length === 0) ||
+        (activeTab === 'terminated' && filteredTerminatedTenants.filter(isTenantTerminated).length === 0)) && (
         <div className="text-center py-12">
           <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
@@ -383,33 +473,42 @@ const TenantsPage: React.FC = () => {
           </p>
         </div>
       )}
-      {/* Details Modal */}
+
+      {/* MODALS */}
       <TenantDetailsModal
         show={showTenantModal}
         activeTab={activeTab}
         tenant={selectedTenant}
-        onClose={() => setShowTenantModal(false)}
+        onClose={() => {
+          setShowTenantModal(false);
+          setSelectedTenant(null);
+        }}
         onEdit={handleEdit}
         onTerminate={handleTerminate}
+        onDelete={handleDelete}
       />
 
-      {/* Terminate Modal */}
       <TerminateTenantModal
         isOpen={showTerminateModal}
         onClose={() => {
           setShowTerminateModal(false);
           setTerminatingTenant(null);
+          resetTerminationForm();
         }}
         onSubmit={handleTerminationSubmit}
         formData={terminationFormData}
         onFormChange={(data) => setTerminationFormData(prev => ({ ...prev, ...data }))}
+        onAddDeduction={addDeduction}
+        onRemoveDeduction={removeDeduction}
+        onUpdateDeduction={updateDeduction}
         tenantName={terminatingTenant?.full_name || ''}
         tenantId={terminatingTenant?.id}
         token={token}
+        isLoading={formLoading}
       />
-      {/* Add/Edit Modal */}
+
       <TenantFormModal
-        show={showAddModal || editingTenant != null}
+        show={showAddModal}
         editingTenant={editingTenant}
         formData={formData}
         onClose={() => {
@@ -419,6 +518,7 @@ const TenantsPage: React.FC = () => {
         }}
         onSubmit={handleSubmit}
         onInputChange={handleInputChange}
+        isLoading={formLoading}
       />
     </div>
   );

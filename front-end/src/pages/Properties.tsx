@@ -92,6 +92,7 @@ const Properties: React.FC = () => {
             }
         } catch (error) {
             console.error('Failed to fetch properties:', error);
+            toast.error('❌ Failed to load properties');
         } finally {
             setLoading(false);
         }
@@ -111,6 +112,7 @@ const Properties: React.FC = () => {
             }
         } catch (error) {
             console.error('Failed to fetch tenants:', error);
+            toast.error('❌ Failed to load tenants');
         }
     }, [token, apiCall]);
 
@@ -134,12 +136,12 @@ const Properties: React.FC = () => {
             }
         } catch (error) {
             console.error('Failed to fetch property units:', error);
+            toast.error('❌ Failed to load units');
             setPropertyUnits([]);
         } finally {
             setIsUnitsLoading(false);
         }
     };
-
 
     const fetchAvailableUnits = async (propertyId: number) => {
         try {
@@ -156,6 +158,7 @@ const Properties: React.FC = () => {
             }
         } catch (error) {
             console.error('Failed to fetch available units:', error);
+            toast.error('❌ Failed to load available units');
         }
     };
     
@@ -194,14 +197,17 @@ const Properties: React.FC = () => {
                 'properties'
             );
 
-            if (response && response.property) {
+            if (response && (response.property || response.message?.includes("successfully"))) {
+                toast.success('✅ Property saved successfully!');
                 fetchProperties();
                 setPropertyModalOpen(false);
+                setSelectedProperty(null);
             } else {
-                console.error('Failed to save property:', response);
+                throw new Error(response?.message || 'Failed to save property');
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to save property:', error);
+            toast.error('❌ ' + (error.message || 'Failed to save property'));
         } finally {
             setFormLoading(false);
         }
@@ -270,7 +276,8 @@ const Properties: React.FC = () => {
                 'units'
             );
 
-            if (response && response.unit) {
+            if (response && (response.unit || response.unitId || response.message?.includes("successfully"))) {
+                toast.success('✅ Unit saved successfully!');
                 setUnitModalOpen(false);
                 setIsEditingUnit(false);
                 setUnitFormData(initialUnitFormData);
@@ -279,10 +286,11 @@ const Properties: React.FC = () => {
                     fetchPropertyUnits(selectedProperty.id);
                 }
             } else {
-                console.error('Failed to save unit:', response);
+                throw new Error(response?.message || 'Failed to save unit');
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to save unit:', error);
+            toast.error('❌ ' + (error.message || 'Failed to save unit'));
         } finally {
             setFormLoading(false);
         }
@@ -295,28 +303,10 @@ const Properties: React.FC = () => {
         setContractModalOpen(true);
     };
 
-    // ✅ IMPROVED: Auto-close, toast, and refresh
     const handleContractSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setFormLoading(true);
         setContractError(null);
-
-        // Optional: Optimistic UI update (uncomment if you want instant feedback)
-        /*
-        if (selectedProperty) {
-            setProperties(prev => 
-                prev.map(p => 
-                    p.id === selectedProperty.id 
-                        ? { 
-                            ...p, 
-                            occupied_units: p.occupied_units + 1,
-                            vacant_units: Math.max(0, p.vacant_units - 1)
-                            } 
-                        : p
-                )
-            );
-        }
-        */
 
         try {
             const response = await apiCall(
@@ -331,45 +321,22 @@ const Properties: React.FC = () => {
                 'contracts'
             );
 
-            if (response && response.contract) {
-                // ✅ Show success toast
+            if (response && (response.contract || response.message?.includes("successfully"))) {
                 toast.success('✅ Contract created successfully!', {
                     duration: 3000,
                     position: 'top-center',
                 });
 
-                // ✅ Close modal
                 setContractModalOpen(false);
-
-                // ✅ Refresh property data to update UI
+                setSelectedProperty(null);
                 fetchProperties();
-
-                // Reset form (optional, since modal closes)
-                setContractFormData({ ...initialContractFormData, propertyId: selectedProperty?.id.toString() || '' });
+                setContractFormData({ ...initialContractFormData });
 
             } else {
                 throw new Error(response?.message || 'Failed to create contract');
             }
         } catch (error: any) {
             console.error('Failed to create contract:', error);
-
-            // ❌ Rollback optimistic update if you enabled it
-            /*
-            if (selectedProperty) {
-                setProperties(prev => 
-                    prev.map(p => 
-                        p.id === selectedProperty.id 
-                            ? { 
-                                ...p, 
-                                occupied_units: p.occupied_units - 1,
-                                vacant_units: p.vacant_units + 1
-                                } 
-                            : p
-                    )
-                );
-            }
-            */
-
             const errorMessage = error.message || 'Failed to create contract';
             setContractError(errorMessage);
             toast.error('❌ ' + errorMessage);
@@ -424,15 +391,15 @@ const Properties: React.FC = () => {
                     'properties'
                 );
                 
-                if (response && response.success) {
+                if (response && (response.success || response.message?.includes("successfully"))) {
+                    toast.success('✅ Property deleted successfully');
                     fetchProperties();
                 } else {
-                    const errorData = response || { message: 'Failed to delete property' };
-                    alert(errorData.message || 'Failed to delete property');
+                    throw new Error(response?.message || 'Failed to delete property');
                 }
-            } catch (error) {
+            } catch (error: any) {
                 console.error('Delete error:', error);
-                alert('Failed to delete property');
+                toast.error('❌ ' + (error.message || 'Failed to delete property'));
             }
         }
     };
@@ -450,18 +417,18 @@ const Properties: React.FC = () => {
                     'units'
                 );
                 
-                if (response && response.success) {
+                if (response && (response.success || response.message?.includes("successfully"))) {
+                    toast.success('✅ Unit deleted successfully');
                     if (selectedProperty) {
                         fetchPropertyUnits(selectedProperty.id);
                     }
                     fetchProperties();
                 } else {
-                    const errorData = response || { message: 'Failed to delete unit' };
-                    alert(errorData.message || 'Failed to delete unit');
+                    throw new Error(response?.message || 'Failed to delete unit');
                 }
-            } catch (error) {
+            } catch (error: any) {
                 console.error('Delete unit error:', error);
-                alert('Failed to delete unit');
+                toast.error('❌ ' + (error.message || 'Failed to delete unit'));
             }
         }
     };
