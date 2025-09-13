@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useApiWithLimitCheck } from '../hooks/useApiWithLimitCheck';
+import { toast } from 'react-hot-toast';
 import { 
   CreditCard, 
   Plus, 
@@ -16,11 +17,11 @@ import {
 interface Payment {
   id: number;
   amount: number;
-  payment_date: string;
+  payment_date: string | null;
   due_date: string;
   status: 'pending' | 'paid' | 'overdue' | 'cancelled';
   payment_type: string;
-  payment_method: string;
+  payment_method: string | null;
   tenant_name: string;
   property_name: string;
   unit_number: string;
@@ -38,7 +39,7 @@ interface Contract {
 
 const Payments: React.FC = () => {
   const { token } = useAuth();
-   const { apiCall } = useApiWithLimitCheck();
+  const { apiCall } = useApiWithLimitCheck();
   const [payments, setPayments] = useState<Payment[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,9 +76,12 @@ const Payments: React.FC = () => {
       if (response.ok) {
         const data = await response.json();
         setPayments(data.payments);
+      } else {
+        toast.error('Failed to fetch payments');
       }
     } catch (error) {
       console.error('Failed to fetch payments:', error);
+      toast.error('Network error while fetching payments');
     } finally {
       setLoading(false);
     }
@@ -94,9 +98,12 @@ const Payments: React.FC = () => {
       if (response.ok) {
         const data = await response.json();
         setContracts(data.contracts);
+      } else {
+        toast.error('Failed to fetch contracts');
       }
     } catch (error) {
       console.error('Failed to fetch contracts:', error);
+      toast.error('Network error while fetching contracts');
     }
   };
 
@@ -114,12 +121,16 @@ const Payments: React.FC = () => {
       });
 
       if (response.ok) {
+        toast.success('Payment recorded successfully');
         setShowAddModal(false);
         resetForm();
         fetchPayments();
+      } else {
+        toast.error('Failed to create payment');
       }
     } catch (error) {
       console.error('Failed to create payment:', error);
+      toast.error('Network error while creating payment');
     }
   };
 
@@ -135,10 +146,14 @@ const Payments: React.FC = () => {
       });
 
       if (response.ok) {
+        toast.success(`Payment marked as ${newStatus}`);
         fetchPayments();
+      } else {
+        toast.error('Failed to update payment status');
       }
     } catch (error) {
       console.error('Failed to update payment status:', error);
+      toast.error('Network error while updating payment status');
     }
   };
 
@@ -156,11 +171,14 @@ const Payments: React.FC = () => {
       });
 
       if (response.ok) {
+        toast.success('Payment deleted successfully');
         fetchPayments();
+      } else {
+        toast.error('Failed to delete payment');
       }
     } catch (error) {
       console.error('Failed to delete payment:', error);
-      alert('Failed to delete payment');
+      toast.error('Network error while deleting payment');
     }
   };
 
@@ -174,10 +192,14 @@ const Payments: React.FC = () => {
       });
 
       if (response.ok) {
+        toast.success('Overdue payments generated');
         fetchPayments();
+      } else {
+        toast.error('Failed to generate overdue payments');
       }
     } catch (error) {
       console.error('Failed to generate overdue payments:', error);
+      toast.error('Network error while generating overdue payments');
     }
   };
 
@@ -382,7 +404,9 @@ const Payments: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900 dark:text-white">
-                      {payment.payment_date ? `Paid: ${new Date(payment.payment_date).toLocaleDateString()}` : 'Not paid yet'}
+                      {payment.payment_date 
+                        ? `Paid: ${new Date(payment.payment_date).toLocaleDateString()}` 
+                        : 'Not paid yet'}
                     </div>
                     <div className="text-sm text-gray-500 dark:text-gray-400">
                       Due: {new Date(payment.due_date).toLocaleDateString()}
@@ -391,7 +415,9 @@ const Payments: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="text-sm text-gray-900 dark:text-white capitalize">
-                      {payment.payment_method.replace('_', ' ')}
+                      {payment.payment_method 
+                        ? payment.payment_method.replace('_', ' ') 
+                        : 'N/A'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -404,15 +430,7 @@ const Payments: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-2">
-                      {payment.status === 'pending' && (
-                        <button
-                          onClick={() => handleStatusUpdate(payment.id, 'paid')}
-                          className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                        >
-                          Mark Paid
-                        </button>
-                      )}
-                      {payment.status === 'overdue' && (
+                      {(payment.status === 'pending' || payment.status === 'overdue') && (
                         <button
                           onClick={() => handleStatusUpdate(payment.id, 'paid')}
                           className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"

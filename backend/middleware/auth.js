@@ -47,9 +47,10 @@ const authenticateToken = async (req, res, next) => {
       // Mark as overdue if not already marked
       if (!user.overdue_since) {
         await db.execute(
-          'UPDATE organizations SET subscription_status = "overdue", overdue_since = CURDATE() WHERE id = ?',
-          [user.organization_id]
-        );
+  "UPDATE organizations SET subscription_status = 'overdue', overdue_since = CURDATE() WHERE id = ?",
+  [user.organization_id]
+);
+
       }
       user.subscription_status = 'overdue';
     }

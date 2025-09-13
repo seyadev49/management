@@ -11,6 +11,7 @@ interface SubscriptionDetails {
   billing_cycle: string;
   next_renewal_date: string;
   daysUntilRenewal: number;
+  alreadyRenewed: boolean;
 }
 
 const Settings: React.FC = () => {
@@ -474,32 +475,58 @@ const Settings: React.FC = () => {
               </div>
 
               {/* Upgrade Button */}
-              <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                <div className="space-y-2">
-                  {/* Show Renew button if renewal is due within 30 days or overdue */}
-                  {subscriptionDetails.daysUntilRenewal <= 30 && (
-                    <button
-                      onClick={() => setShowRenewModal(true)}
-                      className={`w-full px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center ${
-                        subscriptionDetails.daysUntilRenewal <= 0
-                          ? 'bg-red-600 hover:bg-red-700 text-white'
-                          : subscriptionDetails.daysUntilRenewal <= 7
-                          ? 'bg-orange-600 hover:bg-orange-700 text-white'
-                          : 'bg-blue-600 hover:bg-blue-700 text-white'
-                      }`}
-                    >
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      {subscriptionDetails.daysUntilRenewal <= 0 ? 'Renew Now (Overdue)' : 'Renew Subscription'}
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setShowUpgradeModal(true)}
-                    className="w-full px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all duration-200 font-medium dark:from-blue-600 dark:to-purple-700"
-                  >
-                    Upgrade Plan
-                  </button>
-                </div>
-              </div>
+<div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+  <div className="space-y-2">
+    {/* Show Renew button only if renewal is near or overdue */}
+    {subscriptionDetails.daysUntilRenewal <= 30 && (
+      <button
+        onClick={() => {
+          if (
+            !subscriptionDetails.alreadyRenewed &&
+            subscriptionDetails.daysUntilRenewal <= 7 // allow overdue + near due only
+          ) {
+            setShowRenewModal(true);
+          }
+        }}
+        disabled={
+          subscriptionDetails.alreadyRenewed ||
+          subscriptionDetails.daysUntilRenewal > 7 // block "Early Renew"
+        }
+        className={`w-full px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center ${
+          subscriptionDetails.alreadyRenewed || subscriptionDetails.daysUntilRenewal > 7
+            ? 'bg-gray-400 text-gray-700 cursor-not-allowed'
+            : subscriptionDetails.daysUntilRenewal <= 0
+            ? 'bg-rose-500 hover:bg-rose-600 text-white'
+            : 'bg-amber-500 hover:bg-amber-600 text-white'
+        }`}
+      >
+        <RefreshCw className="h-4 w-4 mr-2" />
+        {subscriptionDetails.alreadyRenewed
+          ? 'Renewed ✔'
+          : subscriptionDetails.daysUntilRenewal <= 0
+          ? 'Renew Now (Overdue)'
+          : subscriptionDetails.daysUntilRenewal <= 7
+          ? 'Renew Soon'
+          : 'Early Renew'}
+      </button>
+    )}
+
+
+    {/* Upgrade Button */}
+    <button
+      onClick={() => setShowUpgradeModal(true)}
+      disabled={subscriptionDetails.subscription_status !== 'active'}
+      className={`w-full px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center ${
+        subscriptionDetails.subscription_status === 'active'
+          ? 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white'
+          : 'bg-gray-400 text-gray-700 cursor-not-allowed'
+      }`}
+    >
+      Upgrade Plan
+    </button>
+  </div>
+</div>
+
             </div>
           ) : (
             <div className="text-center py-4">
