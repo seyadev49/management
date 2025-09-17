@@ -29,6 +29,7 @@ const documentRoutes = require('./routes/document');
 const notificationRoutes = require('./routes/notification');
 const subscriptionRoutes = require('./routes/subscription');
 const reportRoutes = require('./routes/report');
+const userManagementRoutes = require('./routes/userManagement');
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -43,6 +44,7 @@ app.use('/api/documents', documentRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/user-management', userManagementRoutes);
 
 // Admin routes - Fixed the path
 app.use('/api/admin/users', require('./routes/admin/adminUser'));

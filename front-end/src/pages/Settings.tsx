@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Settings as User, Building2, Bell, Edit2, Save, X, Crown, Calendar, CreditCard, RefreshCw } from 'lucide-react';
 import UpgradeModal from '../components/UpgradeModal';
 import RenewSubscriptionModal from '../components/RenewSubscriptionModal';
+import UserManagementSection from '../components/UserManagementSection';
 
 interface SubscriptionDetails {
   subscription_status: string;
@@ -20,6 +21,7 @@ const Settings: React.FC = () => {
   const [isEditingOrganization, setIsEditingOrganization] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showRenewModal, setShowRenewModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'profile' | 'organization' | 'users' | 'notifications'>('profile');
   const [subscriptionDetails, setSubscriptionDetails] = useState<SubscriptionDetails | null>(null);
   const [profileData, setProfileData] = useState({
     fullName: user?.fullName || '',
@@ -39,6 +41,9 @@ const Settings: React.FC = () => {
   const [orgUpdateStatus, setOrgUpdateStatus] = useState<{type: 'success' | 'error', message: string} | null>(null);
   const [loading, setLoading] = useState(false);
   const [orgLoading, setOrgLoading] = useState(false);
+
+  // Check if current user is organization owner
+  const isOrganizationOwner = user?.role === 'landlord';
 
   useEffect(() => {
     fetchSubscriptionDetails();
@@ -268,11 +273,41 @@ const Settings: React.FC = () => {
     return colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
   };
 
+  const tabs = [
+    { id: 'profile', name: 'Profile', icon: User },
+    { id: 'organization', name: 'Organization', icon: Building2 },
+    ...(isOrganizationOwner ? [{ id: 'users', name: 'User Management', icon: User }] : []),
+    { id: 'notifications', name: 'Notifications', icon: Bell }
+  ];
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
         <p className="text-gray-600 dark:text-gray-400">Manage your account and organization settings</p>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-200 dark:border-gray-700">
+        <nav className="-mb-px flex space-x-8">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex items-center py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === tab.id
+                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                }`}
+              >
+                <Icon className="h-5 w-5 mr-2" />
+                {tab.name}
+              </button>
+            );
+          })}
+        </nav>
       </div>
 
       {/* Update Status Message */}
@@ -286,7 +321,9 @@ const Settings: React.FC = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Tab Content */}
+      {activeTab === 'profile' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Profile Settings */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center justify-between mb-4">
@@ -330,20 +367,6 @@ const Settings: React.FC = () => {
                 }`}
               />
             </div>
-            {/* <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone</label>
-              <input
-                type="tel"
-                name="phone"
-                value={profileData.phone}
-                onChange={handleInputChange}
-                readOnly={!isEditing}
-                placeholder="Enter phone number"
-                className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg ${
-                  isEditing ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white' : 'bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white'
-                }`}
-              />
-            </div> */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
               <input
@@ -535,7 +558,10 @@ const Settings: React.FC = () => {
             </div>
           )}
         </div>
+        </div>
+      )}
 
+      {activeTab === 'organization' && (
         {/* Organization Settings */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center justify-between mb-4">
@@ -632,7 +658,14 @@ const Settings: React.FC = () => {
             )}
           </form>
         </div>
+      )}
 
+      {/* User Management Tab - Only for organization owners */}
+      {activeTab === 'users' && isOrganizationOwner && (
+        <UserManagementSection />
+      )}
+
+      {activeTab === 'notifications' && (
         {/* Notification Settings */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center mb-4">
@@ -654,7 +687,7 @@ const Settings: React.FC = () => {
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Trial Upgrade Section */}
       {user?.subscriptionStatus === 'trial' && (
