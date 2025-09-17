@@ -3,6 +3,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './components/ui/Toast';
 import { PlanLimitProvider } from './contexts/PlanLimitContext';
+import ErrorBoundary from './components/ErrorBoundary';
 import Layout from './components/Layout';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
@@ -20,6 +21,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
   return (
+    <ErrorBoundary>
     <Router>
       <AuthProvider>
         <ThemeProvider>
@@ -58,6 +60,7 @@ function App() {
         </ThemeProvider>
       </AuthProvider>
     </Router>
+    </ErrorBoundary>
   );
 }
 

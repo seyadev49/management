@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import NotificationDropdown from './NotificationDropdown';
 import UpgradeModal from './UpgradeModal';
 import PlanLimitModal from './PlanLimitModal';
+import NetworkStatusIndicator from './NetworkStatusIndicator';
 import {
   Home,
   Building2,
@@ -191,6 +192,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </main>
       </div>
 
+      {/* Network Status Indicator */}
+      <NetworkStatusIndicator />
       <UpgradeModal
         isOpen={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}
