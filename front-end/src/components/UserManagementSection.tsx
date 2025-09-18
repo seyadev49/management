@@ -11,8 +11,9 @@ import {
   Eye, 
   EyeOff,
   UserCheck,
-  UserX,
-  Crown
+  User,
+  Crown,
+  X
 } from 'lucide-react';
 
 interface User {
@@ -307,23 +308,25 @@ const UserManagementSection: React.FC = () => {
               {users.map((user) => (
                 <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="h-10 w-10 bg-blue-600 rounded-full flex items-center justify-center">
-                        <span className="text-white text-sm font-medium">
-                          {user.full_name.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">
-                          {user.full_name}
-                          {user.role === 'landlord' && (
-                            <Crown className="inline h-4 w-4 ml-1 text-yellow-500" />
-                          )}
-                        </div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">{user.email}</div>
-                      </div>
-                    </div>
-                  </td>
+  <div className="flex items-center">
+    <div className="h-10 w-10 bg-blue-600 rounded-full flex items-center justify-center">
+      <span className="text-white text-sm font-medium">
+        {user.full_name && user.full_name.length > 0 
+          ? user.full_name.charAt(0).toUpperCase() 
+          : user.email.charAt(0).toUpperCase()}
+      </span>
+    </div>
+    <div className="ml-4">
+      <div className="text-sm font-medium text-gray-900 dark:text-white">
+        {user.full_name || user.email}
+        {user.role === 'landlord' && (
+          <Crown className="inline h-4 w-4 ml-1 text-yellow-500" />
+        )}
+      </div>
+      <div className="text-sm text-gray-500 dark:text-gray-400">{user.email}</div>
+    </div>
+  </div>
+</td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getRoleBadgeColor(user.role)}`}>
                       {user.role === 'landlord' ? 'Owner' : user.role}

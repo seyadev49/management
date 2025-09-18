@@ -562,6 +562,7 @@ const Settings: React.FC = () => {
       )}
 
       {activeTab === 'organization' && (
+          <>
         {/* Organization Settings */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center justify-between mb-4">
@@ -658,6 +659,7 @@ const Settings: React.FC = () => {
             )}
           </form>
         </div>
+        </>
       )}
 
       {/* User Management Tab - Only for organization owners */}
@@ -666,6 +668,7 @@ const Settings: React.FC = () => {
       )}
 
       {activeTab === 'notifications' && (
+        <>
         {/* Notification Settings */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center mb-4">
@@ -687,6 +690,7 @@ const Settings: React.FC = () => {
             </div>
           </div>
         </div>
+        </>
       )}
 
       {/* Trial Upgrade Section */}
