@@ -124,6 +124,9 @@ const UserManagementSection: React.FC = () => {
         setUsers(prev => [...prev, data.user]);
         setShowCreateModal(false);
         resetCreateForm();
+        
+        // Show success message
+        alert('User created successfully! A welcome email has been sent to the new user with login credentials.');
       });
     } catch (error) {
       await handleError(error);
@@ -155,6 +158,9 @@ const UserManagementSection: React.FC = () => {
         await fetchInitialData();
         setShowEditModal(false);
         setSelectedUser(null);
+        
+        // Show success message
+        alert('User permissions updated successfully! The user will receive an email notification about the changes.');
       });
     } catch (error) {
       await handleError(error);
@@ -195,9 +201,23 @@ const UserManagementSection: React.FC = () => {
 
   const openEditModal = (user: User) => {
     setSelectedUser(user);
+    
+    // Parse existing permissions
+    let existingPermissions = {};
+    if (user.permissions) {
+      try {
+        existingPermissions = typeof user.permissions === 'string' 
+          ? JSON.parse(user.permissions) 
+          : user.permissions;
+      } catch (error) {
+        console.error('Error parsing user permissions:', error);
+        existingPermissions = {};
+      }
+    }
+
     setEditFormData({
       role: user.role,
-      permissions: user.permissions || {},
+      permissions: existingPermissions,
       isActive: user.is_active
     });
     setShowEditModal(true);
@@ -324,6 +344,12 @@ const UserManagementSection: React.FC = () => {
         )}
       </div>
       <div className="text-sm text-gray-500 dark:text-gray-400">{user.email}</div>
+      {user.effectivePermissions && Object.keys(user.effectivePermissions).length > 0 && (
+        <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+          {Object.keys(user.effectivePermissions).filter(p => user.effectivePermissions[p]).slice(0, 3).join(', ')}
+          {Object.keys(user.effectivePermissions).filter(p => user.effectivePermissions[p]).length > 3 && '...'}
+        </div>
+      )}
     </div>
   </div>
 </td>
@@ -478,7 +504,7 @@ const UserManagementSection: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Custom Permissions
                       </label>
-                      <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-3">
+                      <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-700/30">
                         {permissions.map(permission => (
                           <label key={permission.id} className="flex items-center">
                             <input
@@ -500,6 +526,9 @@ const UserManagementSection: React.FC = () => {
                           </label>
                         ))}
                       </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                        Note: Custom permissions will override role-based permissions. Uncheck permissions to restrict access.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -587,7 +616,7 @@ const UserManagementSection: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Custom Permissions
                       </label>
-                      <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-3">
+                      <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-700/30">
                         {permissions.map(permission => (
                           <label key={permission.id} className="flex items-center">
                             <input
@@ -608,6 +637,11 @@ const UserManagementSection: React.FC = () => {
                             </div>
                           </label>
                         ))}
+                      </div>
+                      <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded">
+                        <p className="text-xs text-blue-700 dark:text-blue-300">
+                          <strong>Important:</strong> Changes will take effect immediately. The user will receive an email notification about permission updates.
+                        </p>
                       </div>
                     </div>
                   </div>

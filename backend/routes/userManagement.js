@@ -1,6 +1,7 @@
 const express = require('express');
 const { body } = require('express-validator');
 const { authenticateToken, authorize, logActivity } = require('../middleware/auth');
+const { checkPermission } = require('../middleware/permissions');
 const {
   createAdminUser,
   getOrganizationUsers,
@@ -28,10 +29,10 @@ const updateUserValidation = [
 ];
 
 // Routes (only organization owners can access these)
-router.post('/create', authorize('landlord'), createUserValidation, createAdminUser);
-router.get('/organization-users', authorize('landlord'), getOrganizationUsers);
-router.put('/:userId/role', authorize('landlord'), updateUserValidation, updateUserRole);
-router.delete('/:userId', authorize('landlord'), deleteUser);
-router.get('/roles-permissions', authorize('landlord'), getRolesAndPermissions);
+router.post('/create', checkPermission('manage_users'), createUserValidation, createAdminUser);
+router.get('/organization-users', checkPermission('manage_users'), getOrganizationUsers);
+router.put('/:userId/role', checkPermission('manage_users'), updateUserValidation, updateUserRole);
+router.delete('/:userId', checkPermission('manage_users'), deleteUser);
+router.get('/roles-permissions', checkPermission('manage_users'), getRolesAndPermissions);
 
 module.exports = router;

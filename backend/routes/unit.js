@@ -8,6 +8,7 @@ const {
   deleteUnit
 } = require('../controllers/unitController');
 const { authenticateToken, authorize, logActivity } = require('../middleware/auth');
+const { checkPermission, checkAnyPermission } = require('../middleware/permissions');
 
 const router = express.Router();
 // Apply authentication and activity logging globally for all routes in this router
@@ -21,10 +22,10 @@ const unitValidation = [
   body('deposit').isFloat({ min: 0 }).withMessage('Valid deposit is required'),
 ];
 
-router.post('/', authenticateToken, authorize('landlord', 'admin'), unitValidation, createUnit);
-router.get('/', authenticateToken, getUnits);
-router.get('/:id', authenticateToken, getUnitById);
-router.put('/:id', authenticateToken, authorize('landlord', 'admin'), updateUnit);
-router.delete('/:id', authenticateToken, authorize('landlord', 'admin'), deleteUnit);
+router.post('/', checkPermission('manage_properties'), unitValidation, createUnit);
+router.get('/', checkAnyPermission('view_properties', 'manage_properties'), getUnits);
+router.get('/:id', checkAnyPermission('view_properties', 'manage_properties'), getUnitById);
+router.put('/:id', checkPermission('manage_properties'), updateUnit);
+router.delete('/:id', checkPermission('manage_properties'), deleteUnit);
 
 module.exports = router;

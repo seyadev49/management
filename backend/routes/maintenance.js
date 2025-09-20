@@ -1,6 +1,7 @@
 const express = require('express');
 const { body } = require('express-validator');
 const { checkPlanLimit } = require('../middleware/planLimits');
+const { checkPermission, checkAnyPermission } = require('../middleware/permissions');
 const {
   createMaintenanceRequest,
   getMaintenanceRequests,
@@ -22,10 +23,10 @@ const maintenanceValidation = [
   body('priority').isIn(['low', 'medium', 'high', 'urgent']).withMessage('Valid priority is required'),
 ];
 
-router.post('/', authenticateToken, checkPlanLimit('maintenance_requests'), maintenanceValidation, createMaintenanceRequest);
-router.get('/', authenticateToken, getMaintenanceRequests);
-router.get('/:id', authenticateToken, getMaintenanceRequestById);
-router.put('/:id', authenticateToken, updateMaintenanceRequest);
-router.delete('/:id', authenticateToken, deleteMaintenanceRequest);
+router.post('/', checkAnyPermission('create_maintenance', 'manage_maintenance'), checkPlanLimit('maintenance_requests'), maintenanceValidation, createMaintenanceRequest);
+router.get('/', checkAnyPermission('view_maintenance', 'manage_maintenance', 'create_maintenance'), getMaintenanceRequests);
+router.get('/:id', checkAnyPermission('view_maintenance', 'manage_maintenance'), getMaintenanceRequestById);
+router.put('/:id', checkPermission('manage_maintenance'), updateMaintenanceRequest);
+router.delete('/:id', checkPermission('manage_maintenance'), deleteMaintenanceRequest);
 
 module.exports = router;

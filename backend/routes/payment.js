@@ -9,6 +9,7 @@ const {
   getPaymentSummary
 } = require('../controllers/paymentController');
 const { authenticateToken, logActivity } = require('../middleware/auth');
+const { checkPermission, checkAnyPermission } = require('../middleware/permissions');
 
 const router = express.Router();
 
@@ -24,11 +25,11 @@ const paymentValidation = [
   body('dueDate').isISO8601().withMessage('Valid due date is required'),
 ];
 
-router.post('/', authenticateToken, paymentValidation, createPayment);
-router.get('/', authenticateToken, getPayments);
-router.get('/summary', authenticateToken, getPaymentSummary);
-router.put('/:id/status', authenticateToken, updatePaymentStatus);
-router.delete('/:id', authenticateToken, deletePayment);
-router.post('/generate-overdue', authenticateToken, generateOverduePayments);
+router.post('/', checkAnyPermission('record_payments', 'manage_payments'), paymentValidation, createPayment);
+router.get('/', checkAnyPermission('view_payments', 'manage_payments', 'record_payments'), getPayments);
+router.get('/summary', checkAnyPermission('view_payments', 'manage_payments'), getPaymentSummary);
+router.put('/:id/status', checkAnyPermission('manage_payments', 'record_payments'), updatePaymentStatus);
+router.delete('/:id', checkPermission('manage_payments'), deletePayment);
+router.post('/generate-overdue', checkPermission('manage_payments'), generateOverduePayments);
 
 module.exports = router;

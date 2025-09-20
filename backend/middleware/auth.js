@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const db = require('../db/connection');
+const { getUserEffectivePermissions } = require('./permissions');
 
 const authenticateToken = async (req, res, next) => {
   console.log('=== AUTHENTICATION MIDDLEWARE CALLED ===');
@@ -60,6 +61,9 @@ const authenticateToken = async (req, res, next) => {
       console.log('Subscription blocked');
       return res.status(403).json({ message: 'Subscription is not active' });
     }
+
+    // Get user's effective permissions
+    user.effectivePermissions = await getUserEffectivePermissions(user.id);
 
     req.user = user;
     console.log('Authentication successful, passing to next middleware');

@@ -146,10 +146,103 @@ const sendPasswordResetEmail = async (userEmail, userName, resetToken, frontendU
   return sendEmail(userEmail, subject, html, text);
 };
 
+const sendAdminNotificationEmail = async (adminEmail, adminName, title, message, organizationName) => {
+  const subject = `${title} - RentFlow Admin Notification`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #2563eb;">${title}</h2>
+      <p>Hi ${adminName},</p>
+      <p>You have received an important notification for <strong>${organizationName}</strong>.</p>
+      
+      <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2563eb;">
+        <h3 style="color: #1f2937; margin-top: 0;">Notification Details:</h3>
+        <p style="color: #4b5563; margin-bottom: 0;">${message}</p>
+      </div>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard" style="background-color: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">View Dashboard</a>
+      </div>
+      
+      <p>Best regards,<br>The RentFlow Team</p>
+    </div>
+  `;
+  
+  const text = `${title}: ${message}. Visit your dashboard at ${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard`;
+  
+  return sendEmail(adminEmail, subject, html, text);
+};
+
+const sendUserCreatedEmail = async (newUserEmail, newUserName, creatorName, organizationName, temporaryPassword) => {
+  const subject = 'Welcome to RentFlow - Account Created';
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #2563eb;">Welcome to RentFlow!</h2>
+      <p>Hi ${newUserName},</p>
+      <p>An account has been created for you in <strong>${organizationName}</strong> by ${creatorName}.</p>
+      
+      <div style="background-color: #f0f9ff; border: 1px solid #bfdbfe; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="color: #1e40af; margin-top: 0;">Your Login Credentials:</h3>
+        <p style="margin: 5px 0;"><strong>Email:</strong> ${newUserEmail}</p>
+        <p style="margin: 5px 0;"><strong>Temporary Password:</strong> <code style="background-color: #e5e7eb; padding: 2px 6px; border-radius: 4px;">${temporaryPassword}</code></p>
+      </div>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/login" style="background-color: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Login to RentFlow</a>
+      </div>
+      
+      <div style="background-color: #fef2f2; border: 1px solid #fecaca; padding: 15px; border-radius: 6px; margin: 20px 0;">
+        <p style="color: #dc2626; margin: 0; font-size: 14px;"><strong>Security Notice:</strong> Please change your password after your first login for security purposes.</p>
+      </div>
+      
+      <p>If you have any questions, feel free to reach out to your organization administrator or our support team.</p>
+      
+      <p>Best regards,<br>The RentFlow Team</p>
+    </div>
+  `;
+  
+  const text = `Welcome to RentFlow! Your account has been created for ${organizationName}. Email: ${newUserEmail}, Temporary Password: ${temporaryPassword}. Please login and change your password.`;
+  
+  return sendEmail(newUserEmail, subject, html, text);
+};
+
+const sendPermissionChangedEmail = async (userEmail, userName, organizationName, changedBy, newRole, newPermissions) => {
+  const subject = 'Account Permissions Updated - RentFlow';
+  const permissionsList = Object.keys(newPermissions).filter(p => newPermissions[p]).join(', ');
+  
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #2563eb;">Account Permissions Updated</h2>
+      <p>Hi ${userName},</p>
+      <p>Your account permissions have been updated in <strong>${organizationName}</strong> by ${changedBy}.</p>
+      
+      <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="color: #1f2937; margin-top: 0;">Updated Access:</h3>
+        <p style="color: #4b5563;"><strong>New Role:</strong> ${newRole}</p>
+        <p style="color: #4b5563;"><strong>Permissions:</strong> ${permissionsList || 'No specific permissions assigned'}</p>
+      </div>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard" style="background-color: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Access Dashboard</a>
+      </div>
+      
+      <p>If you have any questions about your new permissions, please contact your organization administrator.</p>
+      
+      <p>Best regards,<br>The RentFlow Team</p>
+    </div>
+  `;
+  
+  const text = `Your account permissions have been updated in ${organizationName}. New role: ${newRole}. Permissions: ${permissionsList}`;
+  
+  return sendEmail(userEmail, subject, html, text);
+};
+
 module.exports = {
   sendEmail,
   sendWelcomeEmail,
   sendPaymentReminderEmail,
   sendContractExpiryEmail,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  sendAdminNotificationEmail,
+  sendUserCreatedEmail,
+  sendPermissionChangedEmail
 };

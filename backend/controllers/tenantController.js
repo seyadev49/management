@@ -1,4 +1,5 @@
 const db = require('../db/connection');
+const { sendAdminNotificationEmail } = require('../services/emailService');
 
 const createTenant = async (req, res) => {
   try {
@@ -53,6 +54,31 @@ const createTenant = async (req, res) => {
         authenticationDate && authenticationDate.trim() !== '' ? authenticationDate : null
       ]
     );
+
+    // Send notification to organization admins about new tenant
+    try {
+      const [adminUsers] = await db.execute(
+        `SELECT u.email, u.full_name, o.name as organization_name
+         FROM users u 
+         JOIN organizations o ON u.organization_id = o.id 
+         WHERE u.organization_id = ? AND u.role IN ('landlord', 'admin') AND u.is_active = TRUE`,
+        [req.user.organization_id]
+      );
+
+      for (const admin of adminUsers) {
+        if (admin.email !== req.user.email) { // Don't send to the user who created the tenant
+          await sendAdminNotificationEmail(
+            admin.email,
+            admin.full_name,
+            'New Tenant Added',
+            `A new tenant "${fullName}" (ID: ${tenantId}) has been added to the system by ${req.user.full_name}.`,
+            admin.organization_name
+          );
+        }
+      }
+    } catch (emailError) {
+      console.error('Failed to send tenant creation notification:', emailError);
+    }
 
     res.status(201).json({
       message: 'Tenant created successfully',
@@ -343,6 +369,29 @@ const terminateTenant = async (req, res) => {
   [contract.unit_id]
 );
     await connection.query('COMMIT');
+
+    // Send email notification to organization admins about tenant termination
+    try {
+      const [adminUsers] = await connection.execute(
+        `SELECT u.email, u.full_name, o.name as organization_name
+         FROM users u 
+         JOIN organizations o ON u.organization_id = o.id 
+         WHERE u.organization_id = ? AND u.role IN ('landlord', 'admin') AND u.is_active = TRUE`,
+        [req.user.organization_id]
+      );
+
+      for (const admin of adminUsers) {
+        await sendAdminNotificationEmail(
+          admin.email,
+          admin.full_name,
+          'Tenant Terminated',
+          `Tenant ${tenant.full_name} at ${contract.property_name} Unit ${contract.unit_number} has been terminated. Reason: ${terminationReason}. Deposit action: ${securityDepositAction}`,
+          admin.organization_name
+        );
+      }
+    } catch (emailError) {
+      console.error('Failed to send tenant termination notification:', emailError);
+    }
 
     res.json({
       message: 'Tenant terminated successfully',

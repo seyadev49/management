@@ -1,4 +1,5 @@
 const db = require('../db/connection');
+const { sendAdminNotificationEmail } = require('../services/emailService');
 
 const createProperty = async (req, res) => {
   try {
@@ -30,6 +31,31 @@ const createProperty = async (req, res) => {
         JSON.stringify(amenities || [])
       ]
     );
+
+    // Send notification to organization admins about new property
+    try {
+      const [adminUsers] = await db.execute(
+        `SELECT u.email, u.full_name, o.name as organization_name
+         FROM users u 
+         JOIN organizations o ON u.organization_id = o.id 
+         WHERE u.organization_id = ? AND u.role IN ('landlord', 'admin') AND u.is_active = TRUE`,
+        [req.user.organization_id]
+      );
+
+      for (const admin of adminUsers) {
+        if (admin.email !== req.user.email) { // Don't send to the user who created the property
+          await sendAdminNotificationEmail(
+            admin.email,
+            admin.full_name,
+            'New Property Added',
+            `A new property "${name}" (${type}) has been added at ${address}, ${city} by ${req.user.full_name}.`,
+            admin.organization_name
+          );
+        }
+      }
+    } catch (emailError) {
+      console.error('Failed to send property creation notification:', emailError);
+    }
 
 
     res.status(201).json({

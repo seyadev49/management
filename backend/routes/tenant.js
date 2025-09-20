@@ -11,6 +11,7 @@ const {
 } = require('../controllers/tenantController');
 const { authenticateToken, authorize, logActivity } = require('../middleware/auth');
 const { checkPlanLimit } = require('../middleware/planLimits');
+const { checkPermission, checkAnyPermission } = require('../middleware/permissions');
 const { terminateTenant } = require('../controllers/tenantController');
 
 const router = express.Router();
@@ -30,13 +31,13 @@ const tenantValidation = [
   body('houseNo').notEmpty().withMessage('House number is required'),
 ];
 
-router.post('/', authenticateToken, authorize('landlord', 'admin'), checkPlanLimit('tenants'), tenantValidation, createTenant);
-router.get('/', authenticateToken, getTenants);
-router.get('/terminated', authenticateToken, getTerminatedTenants);
-router.get('/:id', authenticateToken, getTenantById);
-router.get('/:id/security-deposit', authenticateToken, getSecurityDeposit);
-router.put('/:id', authenticateToken, authorize('landlord', 'admin'), tenantValidation, updateTenant);
-router.delete('/:id', authenticateToken, authorize('landlord', 'admin'), deleteTenant);
-router.post('/:id/terminate', authenticateToken, authorize('landlord', 'admin'), terminateTenant);
+router.post('/', checkPermission('manage_tenants'), checkPlanLimit('tenants'), tenantValidation, createTenant);
+router.get('/', checkAnyPermission('view_tenants', 'manage_tenants'), getTenants);
+router.get('/terminated', checkAnyPermission('view_tenants', 'manage_tenants'), getTerminatedTenants);
+router.get('/:id', checkAnyPermission('view_tenants', 'manage_tenants'), getTenantById);
+router.get('/:id/security-deposit', checkAnyPermission('view_tenants', 'manage_tenants'), getSecurityDeposit);
+router.put('/:id', checkPermission('manage_tenants'), tenantValidation, updateTenant);
+router.delete('/:id', checkPermission('manage_tenants'), deleteTenant);
+router.post('/:id/terminate', checkPermission('manage_tenants'), terminateTenant);
 
 module.exports = router;

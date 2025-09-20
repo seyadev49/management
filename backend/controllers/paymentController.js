@@ -1,4 +1,5 @@
 const db = require('../db/connection');
+const { sendAdminNotificationEmail } = require('../services/emailService');
 
 const createPayment = async (req, res) => {
   try {
@@ -33,6 +34,38 @@ const createPayment = async (req, res) => {
     if (paymentType === 'rent') {
       const paymentDueDate = new Date(dueDate);
       await cleanupOverduePayments(contractId, paymentDueDate.getMonth() + 1, paymentDueDate.getFullYear());
+    }
+
+    // Send notification to admins for large payments
+    if (amount >= 5000) { // Notify for payments >= $5000
+      try {
+        const [tenantInfo] = await db.execute(
+          'SELECT full_name FROM tenants WHERE id = ?',
+          [tenantId]
+        );
+
+        const [adminUsers] = await db.execute(
+          `SELECT u.email, u.full_name, o.name as organization_name
+           FROM users u 
+           JOIN organizations o ON u.organization_id = o.id 
+           WHERE u.organization_id = ? AND u.role IN ('landlord', 'admin') AND u.is_active = TRUE`,
+          [req.user.organization_id]
+        );
+
+        const tenantName = tenantInfo[0]?.full_name || 'Unknown Tenant';
+
+        for (const admin of adminUsers) {
+          await sendAdminNotificationEmail(
+            admin.email,
+            admin.full_name,
+            'Large Payment Recorded',
+            `A payment of $${amount} has been recorded for ${tenantName} (${paymentType}) by ${req.user.full_name}.`,
+            admin.organization_name
+          );
+        }
+      } catch (emailError) {
+        console.error('Failed to send large payment notification:', emailError);
+      }
     }
 
     res.status(201).json({

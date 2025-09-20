@@ -1,6 +1,7 @@
 const express = require('express');
 const { authenticateToken, logActivity } = require('../middleware/auth');
 const { checkPlanLimit } = require('../middleware/planLimits');
+const { checkPermission, checkAnyPermission } = require('../middleware/permissions');
 const {
   upload,
   uploadDocument,
@@ -14,9 +15,9 @@ const router = express.Router();
 router.use(authenticateToken); // Ensures req.user exists
 router.use(logActivity());     // Logs every request after auth
 
-router.get('/', authenticateToken, getDocuments);
-router.post('/upload', authenticateToken, checkPlanLimit('documents'), upload.single('document'), uploadDocument);
-router.get('/download/:id', authenticateToken, downloadDocument);
-router.delete('/:id', authenticateToken, deleteDocument);
+router.get('/', checkAnyPermission('view_documents', 'manage_documents'), getDocuments);
+router.post('/upload', checkAnyPermission('upload_documents', 'manage_documents'), checkPlanLimit('documents'), upload.single('document'), uploadDocument);
+router.get('/download/:id', checkAnyPermission('view_documents', 'manage_documents'), downloadDocument);
+router.delete('/:id', checkPermission('manage_documents'), deleteDocument);
 
 module.exports = router;

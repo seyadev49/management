@@ -1,5 +1,7 @@
 const db = require('../../db/connection');
 const bcrypt = require('bcryptjs');
+const { getUserEffectivePermissions } = require('../../middleware/permissions');
+const { sendUserCreatedEmail, sendPermissionChangedEmail } = require('../../services/emailService');
 
 // Create admin user (only for organization owners)
 const createAdminUser = async (req, res) => {
@@ -12,21 +14,6 @@ const createAdminUser = async (req, res) => {
       role,
       permissions
     } = req.body;
-
-    // Verify that the requesting user is the organization owner
-    const [orgOwner] = await connection.execute(
-      `SELECT u.id, u.role FROM users u 
-       WHERE u.id = ? AND u.organization_id = ? AND u.role = 'landlord'
-       ORDER BY u.created_at ASC LIMIT 1`,
-      [req.user.id, req.user.organization_id]
-    );
-
-    if (orgOwner.length === 0) {
-      return res.status(403).json({ 
-        message: 'Only organization owners can create admin users',
-        code: 'INSUFFICIENT_PRIVILEGES'
-      });
-    }
 
     await connection.query('START TRANSACTION');
 
@@ -63,6 +50,12 @@ const createAdminUser = async (req, res) => {
       [userId, JSON.stringify(permissions || {}), req.user.id]
     );
 
+    // Get organization name for email
+    const [orgData] = await connection.execute(
+      'SELECT name FROM organizations WHERE id = ?',
+      [req.user.organization_id]
+    );
+
     // Log the action
     await connection.execute(
       `INSERT INTO activity_logs (user_id, organization_id, action, details) 
@@ -80,6 +73,15 @@ const createAdminUser = async (req, res) => {
     );
 
     await connection.query('COMMIT');
+
+    // Send welcome email to new user
+    try {
+      const organizationName = orgData[0]?.name || 'Your Organization';
+      await sendUserCreatedEmail(email, fullName, req.user.full_name, organizationName, password);
+    } catch (emailError) {
+      console.error('Failed to send welcome email to new user:', emailError);
+      // Don't fail the user creation if email fails
+    }
 
     res.status(201).json({
       message: 'Admin user created successfully',
@@ -107,21 +109,6 @@ const createAdminUser = async (req, res) => {
 // Get organization users (only for organization owners)
 const getOrganizationUsers = async (req, res) => {
   try {
-    // Verify that the requesting user is the organization owner
-    const [orgOwner] = await db.execute(
-      `SELECT u.id FROM users u 
-       WHERE u.id = ? AND u.organization_id = ? AND u.role = 'landlord'
-       ORDER BY u.created_at ASC LIMIT 1`,
-      [req.user.id, req.user.organization_id]
-    );
-
-    if (orgOwner.length === 0) {
-      return res.status(403).json({ 
-        message: 'Only organization owners can view organization users',
-        code: 'INSUFFICIENT_PRIVILEGES'
-      });
-    }
-
     // Get all users in the organization
     const [users] = await db.execute(
       `SELECT u.id, u.email, u.full_name, u.role, u.is_active, u.created_at, u.last_login,
@@ -133,6 +120,11 @@ const getOrganizationUsers = async (req, res) => {
        ORDER BY u.created_at DESC`,
       [req.user.organization_id]
     );
+
+    // Add effective permissions to each user
+    for (let user of users) {
+      user.effectivePermissions = await getUserEffectivePermissions(user.id);
+    }
 
     res.json({ users });
   } catch (error) {
@@ -149,21 +141,6 @@ const updateUserRole = async (req, res) => {
   try {
     const { userId } = req.params;
     const { role, permissions, isActive } = req.body;
-
-    // Verify that the requesting user is the organization owner
-    const [orgOwner] = await db.execute(
-      `SELECT u.id FROM users u 
-       WHERE u.id = ? AND u.organization_id = ? AND u.role = 'landlord'
-       ORDER BY u.created_at ASC LIMIT 1`,
-      [req.user.id, req.user.organization_id]
-    );
-
-    if (orgOwner.length === 0) {
-      return res.status(403).json({ 
-        message: 'Only organization owners can update user roles',
-        code: 'INSUFFICIENT_PRIVILEGES'
-      });
-    }
 
     // Verify the target user belongs to the same organization
     const [targetUser] = await db.execute(
@@ -218,6 +195,15 @@ const updateUserRole = async (req, res) => {
       );
     }
 
+    // Get updated user info for email notification
+    const [updatedUser] = await db.execute(
+      `SELECT u.email, u.full_name, o.name as organization_name
+       FROM users u 
+       JOIN organizations o ON u.organization_id = o.id 
+       WHERE u.id = ?`,
+      [userId]
+    );
+
     // Log the action
     await db.execute(
       `INSERT INTO activity_logs (user_id, organization_id, action, details) 
@@ -234,6 +220,24 @@ const updateUserRole = async (req, res) => {
       ]
     );
 
+    // Send email notification to user about permission changes
+    if (updatedUser.length > 0 && (role || permissions)) {
+      try {
+        const user = updatedUser[0];
+        await sendPermissionChangedEmail(
+          user.email,
+          user.full_name,
+          user.organization_name,
+          req.user.full_name,
+          role || targetUser[0].role,
+          permissions || {}
+        );
+      } catch (emailError) {
+        console.error('Failed to send permission change email:', emailError);
+        // Don't fail the update if email fails
+      }
+    }
+
     res.json({ message: 'User role updated successfully' });
   } catch (error) {
     console.error('Update user role error:', error);
@@ -248,21 +252,6 @@ const updateUserRole = async (req, res) => {
 const deleteUser = async (req, res) => {
   try {
     const { userId } = req.params;
-
-    // Verify that the requesting user is the organization owner
-    const [orgOwner] = await db.execute(
-      `SELECT u.id FROM users u 
-       WHERE u.id = ? AND u.organization_id = ? AND u.role = 'landlord'
-       ORDER BY u.created_at ASC LIMIT 1`,
-      [req.user.id, req.user.organization_id]
-    );
-
-    if (orgOwner.length === 0) {
-      return res.status(403).json({ 
-        message: 'Only organization owners can delete users',
-        code: 'INSUFFICIENT_PRIVILEGES'
-      });
-    }
 
     // Verify the target user belongs to the same organization
     const [targetUser] = await db.execute(
@@ -366,20 +355,23 @@ const getRolesAndPermissions = async (req, res) => {
 
     const availablePermissions = [
       { id: 'manage_properties', name: 'Manage Properties', description: 'Create, edit, and delete properties' },
+      { id: 'view_properties', name: 'View Properties', description: 'View property information only' },
       { id: 'manage_tenants', name: 'Manage Tenants', description: 'Create, edit, and delete tenants' },
+      { id: 'view_tenants', name: 'View Tenants', description: 'View tenant information only' },
       { id: 'manage_contracts', name: 'Manage Contracts', description: 'Create, edit, and delete contracts' },
+      { id: 'view_contracts', name: 'View Contracts', description: 'View contract information only' },
       { id: 'manage_payments', name: 'Manage Payments', description: 'Full payment management access' },
       { id: 'view_payments', name: 'View Payments', description: 'View payment records only' },
       { id: 'record_payments', name: 'Record Payments', description: 'Record new payments only' },
       { id: 'manage_maintenance', name: 'Manage Maintenance', description: 'Full maintenance request management' },
+      { id: 'view_maintenance', name: 'View Maintenance', description: 'View maintenance requests only' },
       { id: 'create_maintenance', name: 'Create Maintenance', description: 'Create maintenance requests only' },
       { id: 'manage_documents', name: 'Manage Documents', description: 'Upload, view, and delete documents' },
       { id: 'view_documents', name: 'View Documents', description: 'View and download documents only' },
+      { id: 'upload_documents', name: 'Upload Documents', description: 'Upload new documents' },
       { id: 'view_reports', name: 'View Reports', description: 'Access to reports and analytics' },
       { id: 'manage_users', name: 'Manage Users', description: 'Create and manage organization users' },
-      { id: 'view_properties', name: 'View Properties', description: 'View property information only' },
-      { id: 'view_tenants', name: 'View Tenants', description: 'View tenant information only' },
-      { id: 'view_contracts', name: 'View Contracts', description: 'View contract information only' }
+      { id: 'system_settings', name: 'System Settings', description: 'Access to system configuration' }
     ];
 
     res.json({ roles, permissions: availablePermissions });

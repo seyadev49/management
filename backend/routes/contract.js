@@ -9,6 +9,7 @@ const {
   renewContract
 } = require('../controllers/contractController');
 const { authenticateToken, authorize, logActivity } = require('../middleware/auth');
+const { checkPermission, checkAnyPermission } = require('../middleware/permissions');
 
 const router = express.Router();
 
@@ -27,11 +28,11 @@ const contractValidation = [
   body('deposit').isFloat({ min: 0 }).withMessage('Valid deposit is required'),
 ];
 
-router.post('/', authenticateToken, authorize('landlord', 'admin'), contractValidation, createContract);
-router.get('/', authenticateToken, getContracts);
-router.get('/:id', authenticateToken, getContractById);
-router.put('/:id', authenticateToken, authorize('landlord', 'admin'), updateContract);
-router.delete('/:id', authenticateToken, authorize('landlord', 'admin'), deleteContract);
-router.post('/:id/renew', authenticateToken, authorize('landlord', 'admin'), renewContract);
+router.post('/', checkPermission('manage_contracts'), contractValidation, createContract);
+router.get('/', checkAnyPermission('view_contracts', 'manage_contracts'), getContracts);
+router.get('/:id', checkAnyPermission('view_contracts', 'manage_contracts'), getContractById);
+router.put('/:id', checkPermission('manage_contracts'), updateContract);
+router.delete('/:id', checkPermission('manage_contracts'), deleteContract);
+router.post('/:id/renew', checkPermission('manage_contracts'), renewContract);
 
 module.exports = router;

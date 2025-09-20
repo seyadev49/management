@@ -1,4 +1,5 @@
 const db = require('../db/connection');
+const { sendAdminNotificationEmail } = require('../services/emailService');
 
 const createNotification = async (req, res) => {
   try {
@@ -9,6 +10,33 @@ const createNotification = async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?)`,
       [req.user.organization_id, userId, title, message, type, scheduledDate]
     );
+
+    // Send email notification to admin users for important notifications
+    if (type === 'system' || type === 'urgent' || type === 'maintenance') {
+      try {
+        const [adminUsers] = await db.execute(
+          `SELECT u.email, u.full_name, o.name as organization_name
+           FROM users u 
+           JOIN organizations o ON u.organization_id = o.id 
+           WHERE u.id = ? AND u.is_active = TRUE`,
+          [userId]
+        );
+
+        if (adminUsers.length > 0) {
+          const admin = adminUsers[0];
+          await sendAdminNotificationEmail(
+            admin.email,
+            admin.full_name,
+            title,
+            message,
+            admin.organization_name
+          );
+        }
+      } catch (emailError) {
+        console.error('Failed to send admin notification email:', emailError);
+        // Don't fail notification creation if email fails
+      }
+    }
 
     res.status(201).json({
       message: 'Notification created successfully',
@@ -129,6 +157,27 @@ const generateSystemNotifications = async () => {
             notificationType
           ]
         );
+
+        // Send email notification for subscription renewals
+        try {
+          const [userEmail] = await db.execute(
+            'SELECT email FROM users WHERE id = ?',
+            [subscription.user_id]
+          );
+          
+          if (userEmail.length > 0) {
+            await sendAdminNotificationEmail(
+              userEmail[0].email,
+              subscription.user_name,
+              title,
+              `Your ${subscription.subscription_plan} subscription expires in ${subscription.days_left} day(s). Please renew to continue using RentFlow.`,
+              subscription.name
+            );
+          }
+        } catch (emailError) {
+          console.error('Failed to send subscription renewal email:', emailError);
+        }
+
         console.log(`Created subscription renewal notification for ${subscription.user_name} (${subscription.days_left} days)`);
       }
     }
@@ -169,6 +218,27 @@ const generateSystemNotifications = async () => {
             'subscription_overdue'
           ]
         );
+
+        // Send urgent email for overdue subscriptions
+        try {
+          const [userEmail] = await db.execute(
+            'SELECT email FROM users WHERE id = ?',
+            [subscription.user_id]
+          );
+          
+          if (userEmail.length > 0) {
+            await sendAdminNotificationEmail(
+              userEmail[0].email,
+              subscription.user_name,
+              'URGENT: Subscription Payment Overdue',
+              `Your subscription payment is ${subscription.days_overdue} day(s) overdue. Please renew immediately to regain access to your account.`,
+              subscription.name
+            );
+          }
+        } catch (emailError) {
+          console.error('Failed to send overdue subscription email:', emailError);
+        }
+
         console.log(`Created overdue subscription notification for ${subscription.user_name} (${subscription.days_overdue} days overdue)`);
       }
     }
