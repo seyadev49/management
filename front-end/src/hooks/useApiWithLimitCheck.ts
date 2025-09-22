@@ -3,6 +3,7 @@ import { usePlanLimitContext } from '../contexts/PlanLimitContext';
 import { usePlanLimits } from './usePlanLimits';
 import { useNetworkError } from './useNetworkError';
 import { analyzeError } from '../utils/networkUtils';
+import toast from 'react-hot-toast';
 
 export const useApiWithLimitCheck = () => {
   const { showPlanLimitModal } = usePlanLimitContext();
@@ -11,7 +12,7 @@ export const useApiWithLimitCheck = () => {
 
   const apiCall = useCallback(async (
     apiFunction: () => Promise<any>,
-    feature: string
+    feature: string,
   ) => {
     try {
       const result = await apiFunction();
@@ -52,6 +53,13 @@ export const useApiWithLimitCheck = () => {
             return null;
           }
           
+          // Handle permission errors
+          if (result.status === 403) {
+            const errorMessage = errorData?.message || 'You don\'t have permission to perform this action';
+            toast.error(errorMessage);
+            throw new Error(`Permission denied: ${errorMessage}`);
+          }
+          
           throw new Error(`HTTP ${result.status}: ${result.statusText}`);
         }
         
@@ -82,6 +90,13 @@ export const useApiWithLimitCheck = () => {
           plan: limitError.plan
         });
         return null;
+      }
+      
+      // Handle permission errors in the catch block
+      if (error?.response?.status === 403) {
+        const errorMessage = error?.response?.data?.message || 'You don\'t have permission to perform this action';
+        toast.error(errorMessage);
+        throw new Error(`Permission denied: ${errorMessage}`);
       }
       
       throw error;

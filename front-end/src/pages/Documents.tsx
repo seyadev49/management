@@ -92,9 +92,9 @@ const Documents: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Failed to upload document:', error);
-      if (error?.response?.status !== 403) {
-        alert('Failed to upload document');
-      }
+      // if (error?.response?.status !== 403) {
+      //   alert('Failed to upload document');
+      // }
     }
   };
 
