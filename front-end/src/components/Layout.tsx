@@ -180,6 +180,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </header>
 
+        {/* Mobile Search Bar */}
+        <div className="md:hidden bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
+          <GlobalSearchBar />
+        </div>
+
         {/* Page Content */}
         <main className="flex-1 overflow-auto p-6">
           {React.cloneElement(children as React.ReactElement, { onPlanLimitReached: handlePlanLimitReached })}
