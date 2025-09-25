@@ -7,6 +7,8 @@ const {
   updateTenant,
   deleteTenant,
   getTerminatedTenants,
+ renewContract,
+ getContractHistory
   getSecurityDeposit
 } = require('../controllers/tenantController');
 const { authenticateToken, authorize, logActivity } = require('../middleware/auth');
@@ -36,8 +38,10 @@ router.get('/', checkAnyPermission('view_tenants', 'manage_tenants'), getTenants
 router.get('/terminated', checkAnyPermission('view_tenants', 'manage_tenants'), getTerminatedTenants);
 router.get('/:id', checkAnyPermission('view_tenants', 'manage_tenants'), getTenantById);
 router.get('/:id/security-deposit', checkAnyPermission('view_tenants', 'manage_tenants'), getSecurityDeposit);
+router.get('/:id/contract-history', checkAnyPermission('view_tenants', 'manage_tenants'), getContractHistory);
 router.put('/:id', checkPermission('manage_tenants'), tenantValidation, updateTenant);
 router.delete('/:id', checkPermission('manage_tenants'), deleteTenant);
 router.post('/:id/terminate', checkPermission('manage_tenants'), terminateTenant);
+router.post('/:id/renew', checkPermission('manage_tenants'), renewContract);
 
 module.exports = router;

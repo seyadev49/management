@@ -6,6 +6,8 @@ import { TenantCard } from './components/TenantCard';
 import { TenantFormModal } from './components/TenantFormModal';
 import { TerminateTenantModal } from './components/TerminateTenantModal';
 import { TenantDetailsModal } from './components/TenantDetailsModal';
+import { RenewContractModal } from './components/RenewContractModal';
+import { ContractHistoryModal } from './components/ContractHistoryModal';
 import { useApiWithLimitCheck } from '../../hooks/useApiWithLimitCheck';
 import toast from 'react-hot-toast';
 
@@ -21,10 +23,13 @@ const TenantsPage: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showTerminateModal, setShowTerminateModal] = useState(false);
   const [showTenantModal, setShowTenantModal] = useState(false);
+  const [showRenewModal, setShowRenewModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
   const [terminatingTenant, setTerminatingTenant] = useState<Tenant | null>(null);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
+  const [renewingTenant, setRenewingTenant] = useState<Tenant | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'active' | 'terminated'>('active');
@@ -57,6 +62,14 @@ const TenantsPage: React.FC = () => {
     securityDepositAction: 'return_full',
     partialReturnAmount: '',
     deductions: [] as Array<{ description: string; amount: number }>,
+    notes: '',
+  });
+
+  const [renewalFormData, setRenewalFormData] = useState({
+    newEndDate: '',
+    monthlyRent: '',
+    deposit: '',
+    leaseDuration: '12',
     notes: '',
   });
 
@@ -117,14 +130,19 @@ const TenantsPage: React.FC = () => {
     }
   }, [token, apiCall]);
 
- useEffect(() => {
-  setLoading(true);
-  if (activeTab === 'active') {
-    fetchTenants().finally(() => setLoading(false));
-  } else {
-    fetchTerminatedTenants().finally(() => setLoading(false));
-  }
-}, [activeTab, fetchTenants, fetchTerminatedTenants]);
+  useEffect(() => {
+    // Fetch both active and terminated tenants to get accurate counts
+    const fetchAllTenants = async () => {
+      setLoading(true);
+      try {
+        await Promise.all([fetchTenants(), fetchTerminatedTenants()]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchAllTenants();
+  }, [fetchTenants, fetchTerminatedTenants]);
 
   // 🚨 DEBUG: Log tenant data in dev mode
   useEffect(() => {
@@ -264,6 +282,23 @@ const TenantsPage: React.FC = () => {
     setShowTerminateModal(true);
   };
 
+  const handleRenew = (tenant: Tenant) => {
+    setRenewingTenant(tenant);
+    setRenewalFormData({
+      newEndDate: '',
+      monthlyRent: tenant.monthly_rent?.toString() || '',
+      deposit: '',
+      leaseDuration: '12',
+      notes: '',
+    });
+    setShowRenewModal(true);
+  };
+
+  const handleViewHistory = (tenant: Tenant) => {
+    setSelectedTenant(tenant);
+    setShowHistoryModal(true);
+  };
+
   const handleTerminationSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!terminatingTenant) return;
@@ -309,6 +344,41 @@ const TenantsPage: React.FC = () => {
     }
   };
 
+  const handleRenewalSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!renewingTenant) return;
+    setFormLoading(true);
+
+    try {
+      const response = await apiCall(
+        () => fetch(`http://localhost:5000/api/tenants/${renewingTenant.id}/renew`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(renewalFormData),
+        }),
+        'tenants'
+      );
+
+      if (response && (response.renewalDetails || response.message?.includes("successfully"))) {
+        toast.success('✅ Contract renewed successfully!');
+        setShowRenewModal(false);
+        setRenewingTenant(null);
+        resetRenewalForm();
+        fetchTenants(); // Refresh to get updated contract dates
+      } else {
+        throw new Error(response?.message || 'Failed to renew contract');
+      }
+    } catch (error: any) {
+      console.error('Failed to renew contract:', error);
+      toast.error('❌ ' + (error.message || 'Failed to renew contract'));
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
   const resetTerminationForm = () => {
     setTerminationFormData({
       terminationDate: new Date().toISOString().split('T')[0],
@@ -316,6 +386,16 @@ const TenantsPage: React.FC = () => {
       securityDepositAction: 'return_full',
       partialReturnAmount: '',
       deductions: [],
+      notes: '',
+    });
+  };
+
+  const resetRenewalForm = () => {
+    setRenewalFormData({
+      newEndDate: '',
+      monthlyRent: '',
+      deposit: '',
+      leaseDuration: '12',
       notes: '',
     });
   };
@@ -347,181 +427,4 @@ const TenantsPage: React.FC = () => {
 
   const filteredTenants = tenants.filter(
     (tenant) =>
-      tenant.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tenant.tenant_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tenant.phone?.includes(searchTerm) ||
-      tenant.city?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const filteredTerminatedTenants = terminatedTenants.filter(
-    (tenant) =>
-      tenant.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tenant.tenant_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tenant.phone?.includes(searchTerm) ||
-      tenant.city?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Tenants</h1>
-          <p className="text-gray-600 dark:text-gray-400">Manage your tenant information</p>
-        </div>
-        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 w-full sm:w-auto">
-          <input
-            type="text"
-            placeholder="Search tenants..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100 w-full sm:w-64"
-          />
-          <button
-            onClick={() => {
-              setShowAddModal(true);
-              setEditingTenant(null);
-            }}
-            disabled={formLoading}
-            className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 dark:bg-blue-700 dark:hover:bg-blue-600 w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {formLoading ? (
-              <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></div>
-            ) : (
-              <Plus className="h-4 w-4 mr-2" />
-            )}
-            Add Tenant
-          </button>
-        </div>
-      </div>
-
-      {/* Tab Switcher */}
-      <div className="border-b border-gray-200 dark:border-gray-700">
-        <nav className="-mb-px flex space-x-8">
-          <button
-            onClick={() => setActiveTab('active')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'active'
-                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-            }`}
-          >
-            Active Tenants ({filteredTenants.filter(isTenantActive).length})
-          </button>
-          <button
-            onClick={() => setActiveTab('terminated')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'terminated'
-                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-            }`}
-          >
-            Terminated Tenants ({filteredTerminatedTenants.filter(isTenantTerminated).length})
-          </button>
-        </nav>
-      </div>
-
-      {/* ✅ ULTIMATE SAFE RENDER — Triple-filtered */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {activeTab === 'active'
-          ? filteredTenants
-              .filter(isTenantActive)
-              .map((tenant) => (
-                <TenantCard
-                  key={tenant.id}
-                  tenant={tenant}
-                  activeTab={activeTab}
-                  openTenantModal={openTenantModal}
-                  handleEdit={handleEdit}
-                  handleTerminate={handleTerminate}
-                  handleDelete={handleDelete}
-                />
-              ))
-          : filteredTerminatedTenants
-              .filter(isTenantTerminated)
-              .map((tenant) => (
-                <TenantCard
-                  key={tenant.id}
-                  tenant={tenant}
-                  activeTab={activeTab}
-                  openTenantModal={openTenantModal}
-                  handleEdit={handleEdit}
-                  handleTerminate={handleTerminate}
-                  handleDelete={handleDelete}
-                />
-              ))}
-      </div>
-
-      {((activeTab === 'active' && filteredTenants.filter(isTenantActive).length === 0) ||
-        (activeTab === 'terminated' && filteredTerminatedTenants.filter(isTenantTerminated).length === 0)) && (
-        <div className="text-center py-12">
-          <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-            No {activeTab} tenants found
-          </h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
-            {activeTab === 'active'
-              ? 'Try adjusting your search or add a new tenant'
-              : 'No terminated tenants match your search criteria'}
-          </p>
-        </div>
-      )}
-
-      {/* MODALS */}
-      <TenantDetailsModal
-        show={showTenantModal}
-        activeTab={activeTab}
-        tenant={selectedTenant}
-        onClose={() => {
-          setShowTenantModal(false);
-          setSelectedTenant(null);
-        }}
-        onEdit={handleEdit}
-        onTerminate={handleTerminate}
-        onDelete={handleDelete}
-      />
-
-      <TerminateTenantModal
-        isOpen={showTerminateModal}
-        onClose={() => {
-          setShowTerminateModal(false);
-          setTerminatingTenant(null);
-          resetTerminationForm();
-        }}
-        onSubmit={handleTerminationSubmit}
-        formData={terminationFormData}
-        onFormChange={(data) => setTerminationFormData(prev => ({ ...prev, ...data }))}
-        onAddDeduction={addDeduction}
-        onRemoveDeduction={removeDeduction}
-        onUpdateDeduction={updateDeduction}
-        tenantName={terminatingTenant?.full_name || ''}
-        tenantId={terminatingTenant?.id}
-        token={token}
-        isLoading={formLoading}
-      />
-
-      <TenantFormModal
-        show={showAddModal}
-        editingTenant={editingTenant}
-        formData={formData}
-        onClose={() => {
-          setShowAddModal(false);
-          setEditingTenant(null);
-          resetForm();
-        }}
-        onSubmit={handleSubmit}
-        onInputChange={handleInputChange}
-        isLoading={formLoading}
-      />
-    </div>
-  );
-};
-
-export default TenantsPage;
+      tenant.full_name?.toLowerCase().includes(searchTerm.

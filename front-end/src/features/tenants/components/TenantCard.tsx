@@ -1,5 +1,5 @@
 import React from 'react';
-import { Phone, MapPin } from 'lucide-react';
+import { Phone, MapPin, Calendar, DollarSign } from 'lucide-react';
 import { Tenant } from '../types';
 
 interface TenantCardProps {
@@ -8,6 +8,7 @@ interface TenantCardProps {
   openTenantModal: (tenant: Tenant) => void;
   handleEdit: (tenant: Tenant) => void;
   handleTerminate: (tenant: Tenant) => void;
+ handleRenew: (tenant: Tenant) => void;
 }
 
 export const TenantCard: React.FC<TenantCardProps> = ({
@@ -16,6 +17,7 @@ export const TenantCard: React.FC<TenantCardProps> = ({
   openTenantModal,
   handleEdit,
   handleTerminate,
+ handleRenew,
 }) => (
   <div
     key={tenant.id}
@@ -51,6 +53,15 @@ export const TenantCard: React.FC<TenantCardProps> = ({
           >
             Edit
           </button>
+         <button
+           onClick={(e) => {
+             e.stopPropagation();
+             handleRenew(tenant);
+           }}
+           className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 text-sm"
+         >
+           Renew
+         </button>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -90,27 +101,29 @@ export const TenantCard: React.FC<TenantCardProps> = ({
       )}
     </div>
     {activeTab === 'active' && tenant.contract_status === 'active' && (
-      <div className="mt-3 flex space-x-4">
+     <div className="mt-3 grid grid-cols-2 gap-2">
         {tenant.days_until_expiry !== null && (
-          <div className={`text-sm ${
+         <div className={`flex items-center text-xs ${
             tenant.days_until_expiry! <= 30
               ? 'text-red-600 dark:text-red-400'
               : tenant.days_until_expiry! <= 60
               ? 'text-yellow-600 dark:text-yellow-400'
               : 'text-green-600 dark:text-green-400'
           }`}>
-            Contract: {tenant.days_until_expiry} days
+           <Calendar className="h-3 w-3 mr-1" />
+           <span>Contract: {tenant.days_until_expiry}d</span>
           </div>
         )}
         {tenant.days_until_next_payment !== null && (
-          <div className={`text-sm ${
+         <div className={`flex items-center text-xs ${
             tenant.days_until_next_payment! <= 0
               ? 'text-red-600 dark:text-red-400'
               : tenant.days_until_next_payment! <= 7
               ? 'text-yellow-600 dark:text-yellow-400'
               : 'text-green-600 dark:text-green-400'
           }`}>
-            Payment: {tenant.days_until_next_payment! <= 0 ? 'Overdue' : `${tenant.days_until_next_payment} days`}
+           <DollarSign className="h-3 w-3 mr-1" />
+           <span>Payment: {tenant.days_until_next_payment! <= 0 ? 'Overdue' : `${tenant.days_until_next_payment}d`}</span>
           </div>
         )}
       </div>

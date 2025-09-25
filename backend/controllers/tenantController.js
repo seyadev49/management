@@ -232,6 +232,138 @@ const deleteTenant = async (req, res) => {
   }
 };
 const terminateTenant = async (req, res) => {
+const renewContract = async (req, res) => {
+  const connection = await db.getConnection();
+  try {
+    const { id } = req.params; // tenant ID
+    const {
+      newEndDate,
+      monthlyRent,
+      deposit,
+      leaseDuration,
+      notes
+    } = req.body;
+
+    await connection.query('START TRANSACTION');
+
+    // Get current active contract
+    const [currentContracts] = await connection.execute(
+      `SELECT rc.*, p.name as property_name, pu.unit_number, t.full_name as tenant_name
+       FROM rental_contracts rc
+       JOIN properties p ON rc.property_id = p.id
+       JOIN property_units pu ON rc.unit_id = pu.id
+       JOIN tenants t ON rc.tenant_id = t.id
+       WHERE rc.tenant_id = ? AND rc.status = 'active' AND rc.organization_id = ?`,
+      [id, req.user.organization_id]
+    );
+
+    if (currentContracts.length === 0) {
+      await connection.query('ROLLBACK');
+      return res.status(404).json({ message: 'No active contract found for this tenant' });
+    }
+
+    const currentContract = currentContracts[0];
+
+    // Archive current contract
+    await connection.execute(
+      `UPDATE rental_contracts 
+       SET status = 'expired', 
+           actual_end_date = CURDATE(),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND organization_id = ?`,
+      [currentContract.id, req.user.organization_id]
+    );
+
+    // Calculate new contract dates
+    const startDate = new Date();
+    const endDate = new Date(newEndDate);
+    const rentEndDate = new Date(newEndDate);
+
+    // Create new contract
+    const [newContractResult] = await connection.execute(
+      `INSERT INTO rental_contracts (
+        organization_id, property_id, unit_id, tenant_id, landlord_id,
+        lease_duration, contract_start_date, contract_end_date, monthly_rent, deposit,
+        payment_term, rent_start_date, rent_end_date, total_amount,
+        eeu_payment, water_payment, generator_payment, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
+      [
+        req.user.organization_id,
+        currentContract.property_id,
+        currentContract.unit_id,
+        currentContract.tenant_id,
+        req.user.id,
+        leaseDuration || 12,
+        startDate,
+        endDate,
+        monthlyRent || currentContract.monthly_rent,
+        deposit || currentContract.deposit,
+        currentContract.payment_term || 1,
+        startDate,
+        rentEndDate,
+        (monthlyRent || currentContract.monthly_rent) * (leaseDuration || 12),
+        currentContract.eeu_payment || 0,
+        currentContract.water_payment || 0,
+        currentContract.generator_payment || 0
+      ]
+    );
+
+    // Log the renewal activity
+    await connection.execute(
+      `INSERT INTO activity_logs (user_id, organization_id, action, details) 
+       VALUES (?, ?, 'contract_renewed', ?)`,
+      [
+        req.user.id,
+        req.user.organization_id,
+        JSON.stringify({
+          tenant_id: id,
+          tenant_name: currentContract.tenant_name,
+          property: `${currentContract.property_name} Unit ${currentContract.unit_number}`,
+          old_contract_id: currentContract.id,
+          new_contract_id: newContractResult.insertId,
+          old_end_date: currentContract.contract_end_date,
+          new_end_date: newEndDate,
+          new_monthly_rent: monthlyRent || currentContract.monthly_rent,
+          notes: notes
+        })
+      ]
+    );
+
+    // Create notification
+    await connection.execute(
+      `INSERT INTO notifications (organization_id, user_id, title, message, type) 
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        req.user.organization_id,
+        req.user.id,
+        'Contract Renewed',
+        `Contract for ${currentContract.tenant_name} at ${currentContract.property_name} Unit ${currentContract.unit_number} has been renewed until ${new Date(newEndDate).toLocaleDateString()}. ${notes ? 'Notes: ' + notes : ''}`,
+        'general'
+      ]
+    );
+
+    await connection.query('COMMIT');
+
+    res.json({
+      message: 'Contract renewed successfully',
+      renewalDetails: {
+        tenant_name: currentContract.tenant_name,
+        property: `${currentContract.property_name} Unit ${currentContract.unit_number}`,
+        old_contract_id: currentContract.id,
+        new_contract_id: newContractResult.insertId,
+        new_end_date: newEndDate,
+        monthly_rent: monthlyRent || currentContract.monthly_rent
+      }
+    });
+
+  } catch (error) {
+    await connection.query('ROLLBACK');
+    console.error('Renew contract error:', error);
+    res.status(500).json({ message: 'Server error' });
+  } finally {
+    connection.release();
+  }
+};
   const connection = await db.getConnection(); // Get dedicated connection for transaction
   try {
     const { id } = req.params;
@@ -442,6 +574,32 @@ const getTerminatedTenants = async (req, res) => {
   }
 };
 
+const getContractHistory = async (req, res) => {
+  try {
+    const { id } = req.params; // tenant ID
+
+    const [contracts] = await db.execute(
+      `SELECT rc.*, p.name as property_name, pu.unit_number,
+              CASE 
+                WHEN rc.status = 'active' THEN 'Active'
+                WHEN rc.status = 'expired' THEN 'Expired'
+                WHEN rc.status = 'terminated' THEN 'Terminated'
+                ELSE rc.status
+              END as status_display
+       FROM rental_contracts rc
+       JOIN properties p ON rc.property_id = p.id
+       JOIN property_units pu ON rc.unit_id = pu.id
+       WHERE rc.tenant_id = ? AND rc.organization_id = ?
+       ORDER BY rc.created_at DESC`,
+      [id, req.user.organization_id]
+    );
+
+    res.json({ contracts });
+  } catch (error) {
+    console.error('Get contract history error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
 module.exports = {
   createTenant,
   getTenants,
@@ -450,5 +608,7 @@ module.exports = {
   deleteTenant,
   terminateTenant,
   getTerminatedTenants,
-  getSecurityDeposit
+ getSecurityDeposit,
+ renewContract,
+ getContractHistory
 };

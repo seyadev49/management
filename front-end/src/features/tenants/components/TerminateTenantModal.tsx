@@ -21,9 +21,13 @@ interface TerminateTenantModalProps {
   onSubmit: (e: React.FormEvent) => void;
   formData: TerminationFormData;
   onFormChange: (data: Partial<TerminationFormData>) => void;
+ onAddDeduction: () => void;
+ onRemoveDeduction: (index: number) => void;
+ onUpdateDeduction: (index: number, field: 'description' | 'amount', value: string | number) => void;
   tenantName: string;
   tenantId?: string | number;
   token?: string;
+ isLoading: boolean;
 }
 
 export const TerminateTenantModal: React.FC<TerminateTenantModalProps> = ({
@@ -32,9 +36,13 @@ export const TerminateTenantModal: React.FC<TerminateTenantModalProps> = ({
   onSubmit,
   formData,
   onFormChange,
+ onAddDeduction,
+ onRemoveDeduction,
+ onUpdateDeduction,
   tenantName,
   tenantId,
   token,
+ isLoading,
 }) => {
   const [securityDeposit, setSecurityDeposit] = useState<number | null>(null);
   const [depositLoading, setDepositLoading] = useState(false);
@@ -97,29 +105,8 @@ export const TerminateTenantModal: React.FC<TerminateTenantModalProps> = ({
 
   if (!isOpen) return null;
 
-  const addDeduction = () => {
-    onFormChange({
-      deductions: [
-        ...formData.deductions,
-        { id: Date.now() + Math.random(), description: '', amount: 0 }
-      ]
-    });
-  };
 
-  const removeDeduction = (id: number | string) => {
-    onFormChange({ deductions: formData.deductions.filter((d) => d.id !== id) });
-  };
 
-  const updateDeduction = (
-    id: number | string,
-    field: 'description' | 'amount',
-    value: string | number
-  ) => {
-    const updatedDeductions = formData.deductions.map((d) =>
-      d.id === id ? { ...d, [field]: value } : d
-    );
-    onFormChange({ deductions: updatedDeductions });
-  };
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -166,6 +153,7 @@ export const TerminateTenantModal: React.FC<TerminateTenantModalProps> = ({
                   value={formData.terminationDate}
                   onChange={(e) => onFormChange({ terminationDate: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                 disabled={isLoading}
                 />
                 <select
                   name="terminationReason"
@@ -173,6 +161,7 @@ export const TerminateTenantModal: React.FC<TerminateTenantModalProps> = ({
                   value={formData.terminationReason}
                   onChange={(e) => onFormChange({ terminationReason: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                 disabled={isLoading}
                 >
                   <option value="" className="text-gray-900 dark:text-white">Select reason</option>
                   <option value="lease_expired" className="text-gray-900 dark:text-white">Lease Expired</option>
@@ -188,6 +177,7 @@ export const TerminateTenantModal: React.FC<TerminateTenantModalProps> = ({
                   value={formData.securityDepositAction}
                   onChange={(e) => onFormChange({ securityDepositAction: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                 disabled={isLoading}
                 >
                   <option value="" className="text-gray-900 dark:text-white">Select action</option>
                   <option value="return_full" className="text-gray-900 dark:text-white">Return Full Deposit</option>
@@ -205,20 +195,22 @@ export const TerminateTenantModal: React.FC<TerminateTenantModalProps> = ({
                     }
                     placeholder="Partial Return Amount"
                     className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                   disabled={isLoading}
                   />
                 )}
                 <div>
                   <label className="block text-sm text-gray-700 dark:text-gray-300">Deductions</label>
-                  {formData.deductions.map((d) => (
-                    <div key={d.id} className="flex space-x-2 mb-2">
+                 {formData.deductions.map((d, index) => (
+                   <div key={index} className="flex space-x-2 mb-2">
                       <input
                         type="text"
                         placeholder="Description"
                         value={d.description}
                         onChange={(e) =>
-                          updateDeduction(d.id, 'description', e.target.value)
+                         onUpdateDeduction(index, 'description', e.target.value)
                         }
                         className="flex-1 px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                       disabled={isLoading}
                       />
                       <input
                         type="number"
@@ -227,14 +219,16 @@ export const TerminateTenantModal: React.FC<TerminateTenantModalProps> = ({
                         step="0.01"
                         value={d.amount}
                         onChange={(e) =>
-                          updateDeduction(d.id, 'amount', parseFloat(e.target.value) || 0)
+                         onUpdateDeduction(index, 'amount', parseFloat(e.target.value) || 0)
                         }
                         className="w-24 px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                       disabled={isLoading}
                       />
                       <button
                         type="button"
-                        onClick={() => removeDeduction(d.id)}
+                       onClick={() => onRemoveDeduction(index)}
                         className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
+                       disabled={isLoading}
                       >
                         Remove
                       </button>
@@ -242,8 +236,9 @@ export const TerminateTenantModal: React.FC<TerminateTenantModalProps> = ({
                   ))}
                   <button
                     type="button"
-                    onClick={addDeduction}
+                   onClick={onAddDeduction}
                     className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm"
+                   disabled={isLoading}
                   >
                     + Add Deduction
                   </button>
@@ -257,19 +252,31 @@ export const TerminateTenantModal: React.FC<TerminateTenantModalProps> = ({
                   rows={3}
                   placeholder="Additional Notes"
                   className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                 disabled={isLoading}
                 />
               </div>
             </div>
             <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
               <button
                 type="submit"
-                className="w-full inline-flex justify-center rounded-lg border shadow-sm px-4 py-2 bg-red-600 hover:bg-red-700 text-white sm:ml-3 sm:w-auto"
+               disabled={isLoading}
+               className={`w-full inline-flex justify-center rounded-lg border shadow-sm px-4 py-2 text-white sm:ml-3 sm:w-auto ${
+                 isLoading ? 'bg-red-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'
+               }`}
               >
-                Terminate Tenant
+               {isLoading ? (
+                 <>
+                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                   Terminating...
+                 </>
+               ) : (
+                 'Terminate Tenant'
+               )}
               </button>
               <button
                 type="button"
                 onClick={onClose}
+               disabled={isLoading}
                 className="mt-3 w-full inline-flex justify-center rounded-lg border shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:mt-0 sm:ml-3 sm:w-auto"
               >
                 Cancel
