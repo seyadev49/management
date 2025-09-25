@@ -1,5 +1,6 @@
-import React from 'react';
-import { X, Phone, MapPin, Calendar, DollarSign, FileText, AlertTriangle } from 'lucide-react';
+{ X, Phone, MapPin-ftllgdl-p
+eae  xfy
+ }  d   t  r/Y dr d d0  k0t ( -gth a> p>a i eg--r xt-g0t k  Mt   r  ke-cg|r,  -e  0t ) i vHeouo p = bb     etesi- cr-fren, Calendar, DollarSign, FileText, TriangleAlert as AlertTriangle } from 'lucide-react';
 import { Tenant } from '../types';
 
 interface TenantDetailsModalProps {

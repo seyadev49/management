@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calendar, DollarSign, FileText, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
+import { X, Calendar, DollarSign, FileText, Clock, CircleCheck as CheckCircle, TriangleAlert as AlertTriangle } from 'lucide-react';
 import { ContractHistory } from '../types';
 
 interface ContractHistoryModalProps {
