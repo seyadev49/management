@@ -12,17 +12,11 @@ const dbConfig = {
   connectionLimit: 20,
   queueLimit: 0,
   ssl: {
-    ca: fs.readFileSync('./ca.pem')
+    ca: fs.readFileSync('./ca.pem'),
+     rejectUnauthorized: true // <-- force proper SSL validation
   }
 };
-// const dbConfig = {
-//   host: 'localhost',
-//   user: 'rent_management',
-//   password: 'rent_management!',
-//   database: 'rent_management',
-//   waitForConnections: true,
-//   connectionLimit: 20,
-// };
+
 const pool = mysql.createPool(dbConfig);
 
 // Test connection
