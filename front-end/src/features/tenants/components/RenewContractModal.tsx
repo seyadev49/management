@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Calendar, DollarSign, FileText, CircleAlert as AlertCircle } from 'lucide-react';
+import { X, Calendar, DollarSign, FileText as AlertCircle } from 'lucide-react';
 
 interface RenewContractModalProps {
   isOpen: boolean;

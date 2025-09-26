@@ -5,6 +5,9 @@ import { useNetworkError } from './useNetworkError';
 import { analyzeError } from '../utils/networkUtils';
 import toast from 'react-hot-toast';
 
+//theres type error for errorData.message so solve it
+// it sayes ErrorData is declared but the value is naver used solve it
+
 export const useApiWithLimitCheck = () => {
   const { showPlanLimitModal } = usePlanLimitContext();
   const { handleApiError } = usePlanLimits();
@@ -52,10 +55,11 @@ export const useApiWithLimitCheck = () => {
             });
             return null;
           }
-          
+          // for errorData?.message doesnt have any type solve it the error of message
+          const errorDataTyped = errorData as { message?: string };
           // Handle permission errors
           if (result.status === 403) {
-            const errorMessage = errorData?.message || 'You don\'t have permission to perform this action';
+            const errorMessage = errorDataTyped?.message || "You don't have permission to perform this action";
             toast.error(errorMessage);
             throw new Error(`Permission denied: ${errorMessage}`);
           }
