@@ -89,9 +89,9 @@ const createTenant = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
-
 const getTenants = async (req, res) => {
   try {
+    // Fetch tenants with essential contract fields
     const [tenants] = await db.execute(
       `SELECT t.*, 
               rc.id as contract_id,
@@ -100,12 +100,10 @@ const getTenants = async (req, res) => {
               rc.monthly_rent,
               rc.contract_start_date,
               rc.contract_end_date,
+              rc.rent_start_date,      -- ✅ Critical for payment cycle
+              rc.payment_term,         -- ✅ Critical (1=monthly, 3=quarterly, etc.)
               rc.status as contract_status,
-              DATEDIFF(rc.contract_end_date, CURDATE()) as days_until_expiry,
-              (SELECT MIN(DATEDIFF(pay.due_date, CURDATE())) 
-               FROM payments pay 
-               WHERE pay.contract_id = rc.id AND pay.status IN ('pending', 'overdue') 
-               AND pay.due_date >= CURDATE()) as days_until_next_payment
+              DATEDIFF(rc.contract_end_date, CURDATE()) as days_until_expiry
        FROM tenants t
        LEFT JOIN rental_contracts rc ON t.id = rc.tenant_id AND rc.status = 'active'
        LEFT JOIN properties p ON rc.property_id = p.id
@@ -115,13 +113,47 @@ const getTenants = async (req, res) => {
       [req.user.organization_id]
     );
 
-    res.json({ tenants });
+    // ✅ Calculate days_until_next_payment in JavaScript
+    const tenantsWithPaymentInfo = tenants.map(tenant => {
+      if (
+        tenant.contract_status === 'active' &&
+        tenant.rent_start_date &&
+        tenant.payment_term
+      ) {
+        const today = new Date();
+        const rentStart = new Date(tenant.rent_start_date);
+        
+        // Clone rentStart to avoid mutation
+        let nextDue = new Date(rentStart);
+        
+        // Keep adding payment terms until nextDue is AFTER today
+        while (nextDue <= today) {
+          nextDue.setMonth(nextDue.getMonth() + tenant.payment_term);
+        }
+        
+        // Calculate days between today and nextDue
+        const diffTime = nextDue.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        return {
+          ...tenant,
+          days_until_next_payment: diffDays
+        };
+      }
+      
+      // No active contract or missing data → null
+      return {
+        ...tenant,
+        days_until_next_payment: null
+      };
+    });
+
+    res.json({ tenants: tenantsWithPaymentInfo });
   } catch (error) {
     console.error('Get tenants error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
-
 const getTenantById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -231,7 +263,6 @@ const deleteTenant = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
-const terminateTenant = async (req, res) => {
 const renewContract = async (req, res) => {
   const connection = await db.getConnection();
   try {
@@ -277,7 +308,6 @@ const renewContract = async (req, res) => {
     // Calculate new contract dates
     const startDate = new Date();
     const endDate = new Date(newEndDate);
-    const rentEndDate = new Date(newEndDate);
 
     // Create new contract
     const [newContractResult] = await connection.execute(
@@ -300,7 +330,7 @@ const renewContract = async (req, res) => {
         deposit || currentContract.deposit,
         currentContract.payment_term || 1,
         startDate,
-        rentEndDate,
+        endDate,
         (monthlyRent || currentContract.monthly_rent) * (leaseDuration || 12),
         currentContract.eeu_payment || 0,
         currentContract.water_payment || 0,
@@ -364,6 +394,9 @@ const renewContract = async (req, res) => {
     connection.release();
   }
 };
+
+
+const terminateTenant = async (req, res) => {
   const connection = await db.getConnection(); // Get dedicated connection for transaction
   try {
     const { id } = req.params;
@@ -376,7 +409,7 @@ const renewContract = async (req, res) => {
       notes
     } = req.body;
 
-    // Start transaction using query()
+    // Start transaction
     await connection.query('START TRANSACTION');
 
     // Verify tenant belongs to organization
@@ -428,7 +461,6 @@ const renewContract = async (req, res) => {
       depositReturnAmount = partialReturnAmount || 0;
     }
 
-    // Record security deposit transaction if returning any amount
     if (depositReturnAmount > 0) {
       await connection.execute(
         `INSERT INTO payments (organization_id, contract_id, tenant_id, amount, payment_date, due_date, payment_type, payment_method, status, notes) 
@@ -437,7 +469,7 @@ const renewContract = async (req, res) => {
           req.user.organization_id,
           contract.id,
           id,
-          -depositReturnAmount, // Negative amount for refund
+          -depositReturnAmount, // Negative for refund
           terminationDate,
           terminationDate,
           `Security deposit return: ${securityDepositAction}`
@@ -445,7 +477,7 @@ const renewContract = async (req, res) => {
       );
     }
 
-    // 3. Record deductions if any
+    // 3. Record deductions
     if (deductions && deductions.length > 0) {
       for (const deduction of deductions) {
         await connection.execute(
@@ -464,7 +496,7 @@ const renewContract = async (req, res) => {
       }
     }
 
-    // 4. Cancel any future pending payments
+    // 4. Cancel future pending payments
     await connection.execute(
       `UPDATE payments 
        SET status = 'cancelled', notes = CONCAT(IFNULL(notes, ''), ' - Cancelled due to tenant termination')
@@ -474,14 +506,21 @@ const renewContract = async (req, res) => {
 
     // 5. Update tenant status
     await connection.execute(
-  `UPDATE tenants 
-   SET termination_date = ?,
-       termination_reason = ?,
-       termination_notes = ?
-   WHERE id = ? AND organization_id = ?`,
-  [terminationDate, terminationReason, notes, id, req.user.organization_id]
-);
-    // 6. Create notification for landlord
+      `UPDATE tenants 
+       SET termination_date = ?, termination_reason = ?, termination_notes = ?
+       WHERE id = ? AND organization_id = ?`,
+      [terminationDate, terminationReason, notes, id, req.user.organization_id]
+    );
+
+    // 6. Free the unit
+    await connection.execute(
+      `UPDATE property_units 
+       SET is_occupied = 0
+       WHERE id = ?`,
+      [contract.unit_id]
+    );
+
+    // 7. Notify landlord
     await connection.execute(
       `INSERT INTO notifications (organization_id, user_id, title, message, type) 
        VALUES (?, ?, ?, ?, ?)`,
@@ -494,15 +533,9 @@ const renewContract = async (req, res) => {
       ]
     );
 
-    await connection.execute(
-  `UPDATE property_units 
-   SET is_occupied = 0
-   WHERE id = ?`,
-  [contract.unit_id]
-);
     await connection.query('COMMIT');
 
-    // Send email notification to organization admins about tenant termination
+    // 8. Email notifications
     try {
       const [adminUsers] = await connection.execute(
         `SELECT u.email, u.full_name, o.name as organization_name
@@ -541,10 +574,9 @@ const renewContract = async (req, res) => {
     console.error('Terminate tenant error:', error);
     res.status(500).json({ message: 'Server error' });
   } finally {
-    connection.release(); // Always release the connection back to the pool
+    connection.release();
   }
 };
-
 
 
 const getTerminatedTenants = async (req, res) => {
@@ -608,7 +640,7 @@ module.exports = {
   deleteTenant,
   terminateTenant,
   getTerminatedTenants,
- getSecurityDeposit,
- renewContract,
- getContractHistory
+  getSecurityDeposit,
+  renewContract,
+  getContractHistory
 };

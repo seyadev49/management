@@ -36,3 +36,4 @@ router.delete('/:userId', checkPermission('manage_users'), deleteUser);
 router.get('/roles-permissions', checkPermission('manage_users'), getRolesAndPermissions);
 
 module.exports = router;
+

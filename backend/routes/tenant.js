@@ -8,7 +8,7 @@ const {
   deleteTenant,
   getTerminatedTenants,
  renewContract,
- getContractHistory
+ getContractHistory,
   getSecurityDeposit
 } = require('../controllers/tenantController');
 const { authenticateToken, authorize, logActivity } = require('../middleware/auth');
