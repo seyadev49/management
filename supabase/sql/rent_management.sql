@@ -41,6 +41,20 @@ CREATE TABLE "organizations" (
 );
 
 
+-- rent_management.document_categories definition
+
+CREATE TABLE "document_categories" (
+  "id" int NOT NULL AUTO_INCREMENT,
+  "organization_id" int NOT NULL,
+  "name" varchar(100) NOT NULL,
+  "is_system" tinyint(1) DEFAULT '0',
+  "created_at" timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY ("id"),
+  KEY "organization_id" ("organization_id"),
+  CONSTRAINT "document_categories_ibfk_1" FOREIGN KEY ("organization_id") REFERENCES "organizations" ("id") ON DELETE CASCADE
+);
+
+
 -- rent_management.subscription_history definition
 
 CREATE TABLE "subscription_history" (
@@ -107,7 +121,7 @@ CREATE TABLE "users" (
   "password" varchar(255) NOT NULL,
   "full_name" varchar(255) NOT NULL,
   "phone" varchar(20) DEFAULT NULL,
-  "role" enum('super_admin','admin','landlord','tenant','maintenance') NOT NULL,
+  "role" varchar(50) NOT NULL,
   "is_active" tinyint(1) DEFAULT '1',
   "created_at" timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_at" timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -115,6 +129,7 @@ CREATE TABLE "users" (
   "reset_token" varchar(255) DEFAULT NULL,
   "reset_token_expiry" datetime DEFAULT NULL,
   "password_reset_required" tinyint(1) DEFAULT '0',
+  "created_by" int DEFAULT NULL,
   PRIMARY KEY ("id"),
   UNIQUE KEY "email" ("email"),
   KEY "organization_id" ("organization_id"),
@@ -157,11 +172,14 @@ CREATE TABLE "documents" (
   "uploaded_by" int NOT NULL,
   "is_active" tinyint(1) DEFAULT '1',
   "created_at" timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  "category_id" int DEFAULT NULL,
   PRIMARY KEY ("id"),
   KEY "organization_id" ("organization_id"),
   KEY "uploaded_by" ("uploaded_by"),
+  KEY "category_id" ("category_id"),
   CONSTRAINT "documents_ibfk_1" FOREIGN KEY ("organization_id") REFERENCES "organizations" ("id") ON DELETE CASCADE,
-  CONSTRAINT "documents_ibfk_2" FOREIGN KEY ("uploaded_by") REFERENCES "users" ("id") ON DELETE CASCADE
+  CONSTRAINT "documents_ibfk_2" FOREIGN KEY ("uploaded_by") REFERENCES "users" ("id") ON DELETE CASCADE,
+  CONSTRAINT "documents_ibfk_3" FOREIGN KEY ("category_id") REFERENCES "document_categories" ("id") ON DELETE SET NULL
 );
 
 
@@ -271,6 +289,26 @@ CREATE TABLE "rental_contracts" (
   CONSTRAINT "rental_contracts_ibfk_3" FOREIGN KEY ("unit_id") REFERENCES "property_units" ("id") ON DELETE CASCADE,
   CONSTRAINT "rental_contracts_ibfk_4" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE CASCADE,
   CONSTRAINT "rental_contracts_ibfk_5" FOREIGN KEY ("landlord_id") REFERENCES "users" ("id") ON DELETE CASCADE
+);
+
+
+-- rent_management.user_permissions definition
+
+CREATE TABLE "user_permissions" (
+  "id" int NOT NULL AUTO_INCREMENT,
+  "user_id" int NOT NULL,
+  "permissions" json DEFAULT NULL,
+  "created_by" int DEFAULT NULL,
+  "updated_by" int DEFAULT NULL,
+  "created_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY ("id"),
+  UNIQUE KEY "unique_user_permissions" ("user_id"),
+  KEY "user_permissions_created_by_fk" ("created_by"),
+  KEY "user_permissions_updated_by_fk" ("updated_by"),
+  CONSTRAINT "user_permissions_created_by_fk" FOREIGN KEY ("created_by") REFERENCES "users" ("id") ON DELETE SET NULL,
+  CONSTRAINT "user_permissions_updated_by_fk" FOREIGN KEY ("updated_by") REFERENCES "users" ("id") ON DELETE SET NULL,
+  CONSTRAINT "user_permissions_user_fk" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE
 );
 
 

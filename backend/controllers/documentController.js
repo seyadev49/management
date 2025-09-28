@@ -6,25 +6,24 @@ const fs = require('fs').promises;
 const { v4: uuidv4 } = require('uuid');
 
 // Multer setup (same as before, but improved filename)
+// ✅ Make sure upload directory exists before Multer runs
+const uploadDir = path.resolve(__dirname, '../uploads/documents');
+require('fs').mkdirSync(uploadDir, { recursive: true });
+
+// ✅ Multer storage
 const storage = multer.diskStorage({
-  destination: async (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../uploads/documents');
-    await fs.mkdir(uploadDir, { recursive: true });
-    cb(null, uploadDir);
-  },
+  destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    const filename = `${uuidv4()}${ext}`;
-    cb(null, filename);
+    cb(null, `${uuidv4()}${ext}`);
   }
 });
-
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /\/(pdf|jpeg|jpg|png|gif|doc|docx|txt|xlsx|xls)$/i;
-    if (allowedTypes.test(file.mimetype)) {
+    const allowedTypes = /\.(pdf|jpeg|jpg|png|gif|doc|docx|txt|xlsx|xls)$/i;
+    if (allowedTypes.test(file.originalname)) {
       cb(null, true);
     } else {
       cb(new Error('Only PDF, images, Word, Excel, and text files are allowed'));
@@ -211,23 +210,33 @@ const deleteDocument = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
-
-// Download document
 const downloadDocument = async (req, res) => {
   try {
     const { id } = req.params;
+
     const [docs] = await db.execute(
       'SELECT file_path, document_name FROM documents WHERE id = ? AND organization_id = ?',
       [id, req.user.organization_id]
     );
 
-    if (docs.length === 0 || !fs.existsSync(docs[0].file_path)) {
-      return res.status(404).json({ message: 'File not found' });
+    if (docs.length === 0) {
+      return res.status(404).json({ message: 'Document not found in database' });
     }
 
-    res.download(docs[0].file_path, docs[0].document_name);
+    const document = docs[0];
+    const filePath = document.file_path;
+
+    // ✅ Check if file exists
+    try {
+      await fs.access(filePath); // throws if file doesn't exist
+    } catch {
+      console.error(`File missing on disk: ${filePath}`);
+      return res.status(404).json({ message: 'File not found on server' });
+    }
+
+    res.download(filePath, document.document_name);
   } catch (error) {
-    console.error('Download error:', error);
+    console.error('Download document error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
