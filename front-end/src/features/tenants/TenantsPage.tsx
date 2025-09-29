@@ -14,8 +14,7 @@ import toast from 'react-hot-toast';
 const TenantsPage: React.FC = () => {
   const { token } = useAuth();
   const { apiCall } = useApiWithLimitCheck();
-  const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [terminatedTenants, setTerminatedTenants] = useState<Tenant[]>([]);
+  const [allTenants, setAllTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [formLoading, setFormLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -83,44 +82,22 @@ const TenantsPage: React.FC = () => {
         'tenants'
       );
       if (response && response.tenants) {
-        const activeOnly = response.tenants.filter(isTenantActive);
-        setTenants(activeOnly);
+        setAllTenants(response.tenants);
       } else {
-        setTenants([]);
+        setAllTenants([]);
       }
     } catch (error) {
       console.error('Failed to fetch tenants:', error);
-      toast.error('❌ Failed to load active tenants');
-      setTenants([]);
-    }
-  }, [token, apiCall]);
-
-  const fetchTerminatedTenants = useCallback(async () => {
-    try {
-      const response = await apiCall(
-        () => fetch('http://localhost:5000/api/tenants/terminated', {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        'tenants'
-      );
-      if (response && response.tenants) {
-        const terminatedOnly = response.tenants.filter(isTenantTerminated);
-        setTerminatedTenants(terminatedOnly);
-      } else {
-        setTerminatedTenants([]);
-      }
-    } catch (error) {
-      console.error('Failed to fetch terminated tenants:', error);
-      toast.error('❌ Failed to load terminated tenants');
-      setTerminatedTenants([]);
+      toast.error('❌ Failed to load tenants');
+      setAllTenants([]);
     }
   }, [token, apiCall]);
 
   useEffect(() => {
     setLoading(true);
-    Promise.allSettled([fetchTenants(), fetchTerminatedTenants()])
+    fetchTenants()
       .finally(() => setLoading(false));
-  }, [fetchTenants, fetchTerminatedTenants]);
+  }, [fetchTenants]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -230,7 +207,6 @@ const TenantsPage: React.FC = () => {
         if (response && (response.success || response.message?.includes("successfully"))) {
           toast.success('✅ Tenant deleted successfully!');
           fetchTenants();
-          fetchTerminatedTenants();
         } else {
           throw new Error(response?.message || 'Failed to delete tenant');
         }
@@ -283,13 +259,14 @@ const TenantsPage: React.FC = () => {
       );
       if (response && (response.tenant || response.message?.includes("successfully"))) {
         toast.success('✅ Tenant terminated successfully!');
-        setTenants(prev => prev.filter(t => t.id !== terminatingTenant.id));
-        setTerminatedTenants(prev => {
-          if (!prev.some(t => t.id === terminatingTenant.id)) {
-            return [...prev, { ...terminatingTenant, termination_date: terminationFormData.terminationDate }];
-          }
-          return prev;
-        });
+        // Update the tenant status in our local state
+        setAllTenants(prev => 
+          prev.map(t => 
+            t.id === terminatingTenant.id 
+              ? { ...t, termination_date: terminationFormData.terminationDate, status: 'terminated' } 
+              : t
+          )
+        );
         setShowTerminateModal(false);
         setTerminatingTenant(null);
         resetTerminationForm();
@@ -383,21 +360,36 @@ const TenantsPage: React.FC = () => {
     setShowTenantModal(true);
   };
 
-  const filteredTenants = tenants.filter(
-    (tenant) =>
+  // Filter tenants based on activeTab and searchTerm
+  // In TenantsPage.tsx - Main fix
+const getFilteredTenants = () => {
+  return allTenants.filter(tenant => {
+    // Check if tenant matches search criteria
+    const matchesSearch = 
       tenant.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       tenant.tenant_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       tenant.phone?.includes(searchTerm) ||
-      tenant.city?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      tenant.city?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // For active tab, only show tenants without termination date
+    if (activeTab === 'active') {
+      return matchesSearch && !tenant.termination_date && tenant.status !== 'terminated';
+    } 
+    // For terminated tab, only show tenants with termination date
+    else {
+      return matchesSearch && (tenant.termination_date || tenant.status === 'terminated');
+    }
+  });
+};
 
-  const filteredTerminatedTenants = terminatedTenants.filter(
-    (tenant) =>
-      tenant.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tenant.tenant_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tenant.phone?.includes(searchTerm) ||
-      tenant.city?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+// And ensure proper counting:
+const activeCount = allTenants.filter(tenant => 
+  !tenant.termination_date && tenant.status !== 'terminated'
+).length;
+
+const terminatedCount = allTenants.filter(tenant => 
+  tenant.termination_date || tenant.status === 'terminated'
+).length;
 
   if (loading) {
     return (
@@ -450,7 +442,7 @@ const TenantsPage: React.FC = () => {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
             }`}
           >
-            Active Tenants ({filteredTenants.filter(isTenantActive).length})
+            Active Tenants ({activeCount})
           </button>
           <button
             onClick={() => setActiveTab('terminated')}
@@ -460,45 +452,27 @@ const TenantsPage: React.FC = () => {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
             }`}
           >
-            Terminated Tenants ({filteredTerminatedTenants.filter(isTenantTerminated).length})
+            Terminated Tenants ({terminatedCount})
           </button>
         </nav>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {activeTab === 'active'
-          ? filteredTenants
-              .filter(isTenantActive)
-              .map((tenant) => (
-                <TenantCard
-                  key={tenant.id}
-                  tenant={tenant}
-                  activeTab={activeTab}
-                  openTenantModal={openTenantModal}
-                  handleEdit={handleEdit}
-                  handleTerminate={handleTerminate}
-                  handleRenew={handleRenew}
-                  handleViewHistory={handleViewHistory}
-                />
-              ))
-          : filteredTerminatedTenants
-              .filter(isTenantTerminated)
-              .map((tenant) => (
-                <TenantCard
-                  key={tenant.id}
-                  tenant={tenant}
-                  activeTab={activeTab}
-                  openTenantModal={openTenantModal}
-                  handleEdit={handleEdit}
-                  handleTerminate={handleTerminate}
-                  handleRenew={handleRenew}
-                  handleViewHistory={handleViewHistory}
-                />
-              ))}
+        {getFilteredTenants().map((tenant) => (
+          <TenantCard
+            key={tenant.id}
+            tenant={tenant}
+            activeTab={activeTab}
+            openTenantModal={openTenantModal}
+            handleEdit={handleEdit}
+            handleTerminate={handleTerminate}
+            handleRenew={handleRenew}
+            handleViewHistory={handleViewHistory}
+          />
+        ))}
       </div>
 
-      {((activeTab === 'active' && filteredTenants.filter(isTenantActive).length === 0) ||
-        (activeTab === 'terminated' && filteredTerminatedTenants.filter(isTenantTerminated).length === 0)) && (
+      {getFilteredTenants().length === 0 && (
         <div className="text-center py-12">
           <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">

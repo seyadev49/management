@@ -1,3 +1,4 @@
+// Fixed TenantCard component
 import React from 'react';
 import { Phone, MapPin, Calendar, DollarSign } from 'lucide-react';
 import { Tenant } from '../types';
@@ -30,6 +31,9 @@ export const TenantCard: React.FC<TenantCardProps> = ({
     tenant.days_until_expiry !== null && 
     tenant.days_until_expiry <= 60;
 
+  // Ensure we don't show termination info in active tab
+  const isTerminated = tenant.termination_date || tenant.status === 'terminated';
+  
   return (
     <div
       key={tenant.id}
@@ -108,7 +112,8 @@ export const TenantCard: React.FC<TenantCardProps> = ({
             <span className="font-medium">Rent:</span> ${tenant.monthly_rent}/month
           </div>
         )}
-        {activeTab === 'terminated' && tenant.termination_date && (
+        {/* Only show termination info if we're actually in the terminated tab */}
+        {activeTab === 'terminated' && isTerminated && tenant.termination_date && (
           <div className="text-sm text-red-600 dark:text-red-400">
             <span className="font-medium">Terminated:</span> {new Date(tenant.termination_date).toLocaleDateString()}
           </div>
@@ -129,19 +134,19 @@ export const TenantCard: React.FC<TenantCardProps> = ({
             </div>
           )}
           {tenant.days_until_next_payment !== null && (
-  <div className={`flex items-center text-xs ${
-    tenant.days_until_next_payment <= 0
-      ? 'text-red-600 dark:text-red-400'
-      : tenant.days_until_next_payment <= 7
-      ? 'text-yellow-600 dark:text-yellow-400'
-      : 'text-green-600 dark:text-green-400'
-  }`}>
-    <DollarSign className="h-3 w-3 mr-1" />
-    <span>
-      Payment: {tenant.days_until_next_payment <= 0 ? 'Overdue' : `${tenant.days_until_next_payment}d`}
-    </span>
-  </div>
-)}
+            <div className={`flex items-center text-xs ${
+              tenant.days_until_next_payment <= 0
+                ? 'text-red-600 dark:text-red-400'
+                : tenant.days_until_next_payment <= 7
+                ? 'text-yellow-600 dark:text-yellow-400'
+                : 'text-green-600 dark:text-green-400'
+            }`}>
+              <DollarSign className="h-3 w-3 mr-1" />
+              <span>
+                Payment: {tenant.days_until_next_payment <= 0 ? 'Overdue' : `${tenant.days_until_next_payment}d`}
+              </span>
+            </div>
+          )}
         </div>
       )}
     </div>

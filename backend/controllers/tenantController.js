@@ -505,13 +505,12 @@ const terminateTenant = async (req, res) => {
     );
 
     // 5. Update tenant status
-    await connection.execute(
-      `UPDATE tenants 
-       SET termination_date = ?, termination_reason = ?, termination_notes = ?
-       WHERE id = ? AND organization_id = ?`,
-      [terminationDate, terminationReason, notes, id, req.user.organization_id]
-    );
-
+await connection.execute(
+  `UPDATE tenants 
+   SET termination_date = ?, termination_reason = ?, termination_notes = ?, is_active = 0
+   WHERE id = ? AND organization_id = ?`,
+  [terminationDate, terminationReason, notes, id, req.user.organization_id]
+);
     // 6. Free the unit
     await connection.execute(
       `UPDATE property_units 
