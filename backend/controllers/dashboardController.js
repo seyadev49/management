@@ -14,9 +14,9 @@ const getDashboardStats = async (req, res) => {
       [organizationId]
     );
 
-    // Get tenant stats
+    // Get tenant stats (exclude terminated tenants)
     const [tenantStats] = await db.execute(
-      `SELECT COUNT(*) as total_tenants FROM tenants WHERE organization_id = ? AND is_active = TRUE`,
+      `SELECT COUNT(*) as total_tenants FROM tenants WHERE organization_id = ? AND is_active = 1 AND termination_date IS NULL`,
       [organizationId]
     );
 
@@ -64,14 +64,15 @@ const getDashboardStats = async (req, res) => {
       [organizationId]
     );
 
-    // Get expiring contracts (within next 30 days)
+    // Get expiring contracts (within next 30 days, exclude terminated tenants)
     const [expiringContracts] = await db.execute(
       `SELECT rc.*, t.full_name as tenant_name, p.name as property_name, pu.unit_number
        FROM rental_contracts rc
        JOIN tenants t ON rc.tenant_id = t.id
        JOIN properties p ON rc.property_id = p.id
        JOIN property_units pu ON rc.unit_id = pu.id
-       WHERE rc.organization_id = ? AND rc.status = 'active' 
+       WHERE rc.organization_id = ? AND rc.status = 'active'
+       AND t.is_active = 1 AND t.termination_date IS NULL
        AND DATEDIFF(rc.contract_end_date, CURDATE()) <= 30 AND DATEDIFF(rc.contract_end_date, CURDATE()) >= 0
        ORDER BY rc.contract_end_date ASC`,
       [organizationId]

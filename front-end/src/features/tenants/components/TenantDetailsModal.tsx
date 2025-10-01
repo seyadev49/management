@@ -196,12 +196,16 @@ export const TenantDetailsModal: React.FC<TenantDetailsModalProps> = ({
                     <span className="text-gray-600 dark:text-gray-400">Status: </span>
                     <span
                       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        tenant.contract_status === 'active'
+                        activeTab === 'terminated' || tenant.termination_date
+                          ? 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100'
+                          : tenant.contract_status === 'active'
                           ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100'
                           : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
                       }`}
                     >
-                      {tenant.contract_status || 'No active contract'}
+                      {activeTab === 'terminated' || tenant.termination_date
+                        ? 'Terminated'
+                        : tenant.contract_status || 'No active contract'}
                     </span>
                   </div>
                   {tenant.contract_start_date && (

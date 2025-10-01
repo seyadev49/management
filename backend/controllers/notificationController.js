@@ -251,7 +251,9 @@ const generateSystemNotifications = async () => {
       JOIN users u ON rc.landlord_id = u.id
       JOIN tenants t ON rc.tenant_id = t.id
       JOIN properties p ON rc.property_id = p.id
-      WHERE rc.status = 'active' 
+      WHERE rc.status = 'active'
+      AND t.is_active = 1
+      AND t.termination_date IS NULL
       AND DATEDIFF(rc.contract_end_date, CURDATE()) IN (60, 30, 7)
     `);
 
@@ -297,7 +299,9 @@ const generateSystemNotifications = async () => {
       JOIN rental_contracts rc ON p.contract_id = rc.id
       JOIN tenants t ON p.tenant_id = t.id
       JOIN properties prop ON rc.property_id = prop.id
-      WHERE p.status = 'pending' 
+      WHERE p.status = 'pending'
+      AND t.is_active = 1
+      AND t.termination_date IS NULL
       AND DATEDIFF(p.due_date, CURDATE()) IN (7, 3, 1)
     `);
 
@@ -342,7 +346,9 @@ const generateSystemNotifications = async () => {
       JOIN rental_contracts rc ON p.contract_id = rc.id
       JOIN tenants t ON p.tenant_id = t.id
       JOIN properties prop ON rc.property_id = prop.id
-      WHERE p.status = 'pending' 
+      WHERE p.status = 'pending'
+      AND t.is_active = 1
+      AND t.termination_date IS NULL
       AND DATE(p.due_date) = CURDATE()
     `);
 
@@ -376,7 +382,9 @@ const generateSystemNotifications = async () => {
       JOIN rental_contracts rc ON p.contract_id = rc.id
       JOIN tenants t ON p.tenant_id = t.id
       JOIN properties prop ON rc.property_id = prop.id
-      WHERE p.status = 'pending' 
+      WHERE p.status = 'pending'
+      AND t.is_active = 1
+      AND t.termination_date IS NULL
       AND p.due_date < CURDATE()
     `);
 
@@ -421,12 +429,14 @@ const generateMonthlyRentPayments = async () => {
   try {
     console.log('Generating monthly rent payments...');
 
-    // Get all active contracts
+    // Get all active contracts with non-terminated tenants
     const [contracts] = await db.execute(`
       SELECT rc.*, t.id AS tenant_id, t.full_name AS tenant_name
       FROM rental_contracts rc
       JOIN tenants t ON rc.tenant_id = t.id
       WHERE rc.status = 'active'
+      AND t.is_active = 1
+      AND t.termination_date IS NULL
     `);
 
     const today = new Date();
