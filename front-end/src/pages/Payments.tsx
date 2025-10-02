@@ -2,7 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useApiWithLimitCheck } from '../hooks/useApiWithLimitCheck';
 import { toast } from 'react-hot-toast';
-import { CreditCard, Plus, Search, DollarSign, TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, Clock, X, Trash2 } from 'lucide-react';
+import {
+  CreditCard,
+  Plus,
+  Search,
+  DollarSign,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  X,
+  Trash2
+} from 'lucide-react';
 
 interface Payment {
   id: number;
