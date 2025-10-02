@@ -44,6 +44,8 @@ const Payments: React.FC = () => {
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showRecordModal, setShowRecordModal] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [filterStatus, setFilterStatus] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState({
@@ -53,6 +55,11 @@ const Payments: React.FC = () => {
     paymentDate: new Date().toISOString().split('T')[0],
     dueDate: new Date().toISOString().split('T')[0],
     paymentType: 'rent',
+    paymentMethod: 'cash',
+    notes: '',
+  });
+  const [recordFormData, setRecordFormData] = useState({
+    paymentDate: new Date().toISOString().split('T')[0],
     paymentMethod: 'cash',
     notes: '',
   });
@@ -142,18 +149,67 @@ const Payments: React.FC = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({
+          status: newStatus,
+          paymentDate: new Date().toISOString().split('T')[0]
+        }),
       });
 
       if (response.ok) {
         toast.success(`Payment marked as ${newStatus}`);
         fetchPayments();
       } else {
-        toast.error('Failed to update payment status');
+        const errorData = await response.json();
+        toast.error(errorData.message || 'Failed to update payment status');
       }
     } catch (error) {
       console.error('Failed to update payment status:', error);
       toast.error('Network error while updating payment status');
+    }
+  };
+
+  const handleRecordPayment = (payment: Payment) => {
+    setSelectedPayment(payment);
+    setRecordFormData({
+      paymentDate: new Date().toISOString().split('T')[0],
+      paymentMethod: 'cash',
+      notes: '',
+    });
+    setShowRecordModal(true);
+  };
+
+  const handleSubmitRecord = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!selectedPayment) return;
+
+    try {
+      const response = await fetch(`http://localhost:5000/api/payments/${selectedPayment.id}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          status: 'paid',
+          paymentDate: recordFormData.paymentDate,
+          paymentMethod: recordFormData.paymentMethod,
+          notes: recordFormData.notes,
+        }),
+      });
+
+      if (response.ok) {
+        toast.success('Payment recorded successfully');
+        setShowRecordModal(false);
+        setSelectedPayment(null);
+        fetchPayments();
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.message || 'Failed to record payment');
+      }
+    } catch (error) {
+      console.error('Failed to record payment:', error);
+      toast.error('Network error while recording payment');
     }
   };
 
@@ -377,6 +433,9 @@ const Payments: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-300">
                   Status
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-300">
+                  Notes
+                </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-300">
                   Actions
                 </th>
@@ -428,15 +487,28 @@ const Payments: React.FC = () => {
                       </span>
                     </div>
                   </td>
+                  <td className="px-6 py-4">
+                    <span className="text-sm text-gray-900 dark:text-white line-clamp-2" title={payment.notes || ''}>
+                      {payment.notes || '-'}
+                    </span>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex items-center justify-end space-x-2">
+                    <div className="flex items-center justify-end space-x-3">
                       {(payment.status === 'pending' || payment.status === 'overdue') && (
-                        <button
-                          onClick={() => handleStatusUpdate(payment.id, 'paid')}
-                          className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                        >
-                          Mark Paid
-                        </button>
+                        <>
+                          <button
+                            onClick={() => handleRecordPayment(payment)}
+                            className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                          >
+                            Add Record
+                          </button>
+                          <button
+                            onClick={() => handleStatusUpdate(payment.id, 'paid')}
+                            className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                          >
+                            Mark Paid
+                          </button>
+                        </>
                       )}
                       <button
                         onClick={() => handleDelete(payment.id)}
@@ -617,6 +689,99 @@ const Payments: React.FC = () => {
                     onClick={() => {
                       setShowAddModal(false);
                       resetForm();
+                    }}
+                    className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:bg-gray-600 dark:border-gray-500 dark:text-gray-200 dark:hover:bg-gray-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Record Payment Modal */}
+      {showRecordModal && selectedPayment && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-gray-500 opacity-75 dark:bg-gray-900"></div>
+            </div>
+
+            <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <form onSubmit={handleSubmitRecord}>
+                <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Record Payment</h3>
+                    <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                        <div><span className="font-medium">Tenant:</span> {selectedPayment.tenant_name}</div>
+                        <div><span className="font-medium">Property:</span> {selectedPayment.property_name} - Unit {selectedPayment.unit_number}</div>
+                        <div><span className="font-medium">Amount:</span> ${selectedPayment.amount.toLocaleString()}</div>
+                        <div><span className="font-medium">Due Date:</span> {new Date(selectedPayment.due_date).toLocaleDateString()}</div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Payment Date *
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          value={recordFormData.paymentDate}
+                          onChange={(e) => setRecordFormData(prev => ({ ...prev, paymentDate: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Payment Method *
+                        </label>
+                        <select
+                          required
+                          value={recordFormData.paymentMethod}
+                          onChange={(e) => setRecordFormData(prev => ({ ...prev, paymentMethod: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        >
+                          <option value="cash">Cash</option>
+                          <option value="bank_transfer">Bank Transfer</option>
+                          <option value="check">Check</option>
+                          <option value="online">Online</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Notes
+                        </label>
+                        <textarea
+                          value={recordFormData.notes}
+                          onChange={(e) => setRecordFormData(prev => ({ ...prev, notes: e.target.value }))}
+                          rows={3}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                          placeholder="Add notes about this payment..."
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                  <button
+                    type="submit"
+                    className="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-blue-700 dark:hover:bg-blue-800 sm:ml-3 sm:w-auto sm:text-sm"
+                  >
+                    Save Payment
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowRecordModal(false);
+                      setSelectedPayment(null);
                     }}
                     className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:bg-gray-600 dark:border-gray-500 dark:text-gray-200 dark:hover:bg-gray-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                   >

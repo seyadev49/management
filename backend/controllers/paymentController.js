@@ -139,25 +139,45 @@ const getPayments = async (req, res) => {
 const updatePaymentStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, notes, paymentDate } = req.body;
+    const { status, notes, paymentDate, paymentMethod } = req.body;
 
     if (!id || !status) {
       return res.status(400).json({ message: 'Payment ID and status are required' });
     }
 
+    // Get current payment details
+    const [currentPayment] = await db.execute(
+      'SELECT * FROM payments WHERE id = ? AND organization_id = ?',
+      [id, req.user.organization_id]
+    );
+
+    if (currentPayment.length === 0) {
+      return res.status(404).json({ message: 'Payment not found' });
+    }
+
     // If marking as paid, set payment_date to today if not provided
     const actualPaymentDate = status === 'paid' && !paymentDate ? new Date().toISOString().split('T')[0] : paymentDate;
 
-    await db.execute(
-      'UPDATE payments SET status = ?, notes = ?, payment_date = ? WHERE id = ? AND organization_id = ?',
-      [
-        status,
-        notes !== undefined ? notes : null,
-        actualPaymentDate || null,
-        id,
-        req.user?.organization_id ?? null
-      ]
-    );
+    // Prepare update query dynamically
+    let updateQuery = 'UPDATE payments SET status = ?, payment_date = ?';
+    const updateParams = [status, actualPaymentDate || null];
+
+    // Update notes if provided
+    if (notes !== undefined && notes !== null && notes !== '') {
+      updateQuery += ', notes = ?';
+      updateParams.push(notes);
+    }
+
+    // Update payment method if provided
+    if (paymentMethod !== undefined && paymentMethod !== null && paymentMethod !== '') {
+      updateQuery += ', payment_method = ?';
+      updateParams.push(paymentMethod);
+    }
+
+    updateQuery += ' WHERE id = ? AND organization_id = ?';
+    updateParams.push(id, req.user.organization_id);
+
+    await db.execute(updateQuery, updateParams);
 
     res.json({ message: 'Payment status updated successfully' });
   } catch (error) {
@@ -209,8 +229,8 @@ const generateOverduePayments = async (req, res) => {
         
         // Check if payment already exists for this month
         const [existingPayments] = await db.execute(
-          `SELECT id, status FROM payments 
-           WHERE contract_id = ? AND MONTH(due_date) = ? AND YEAR(due_date) = ?`,
+          `SELECT id, status FROM payments
+           WHERE contract_id = ? AND MONTH(due_date) = ? AND YEAR(due_date) = ? AND payment_type = 'rent'`,
           [contract.id, currentMonth, currentYear]
         );
 
