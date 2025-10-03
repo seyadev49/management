@@ -66,7 +66,7 @@ const TenantsPage: React.FC = () => {
   });
 
   const isTenantTerminated = (tenant: Tenant): boolean => {
-    return !!(tenant.termination_date || tenant.status === 'terminated');
+    return tenant.is_active === 0 || !!(tenant.termination_date || tenant.status === 'terminated');
   };
 
   const isTenantActive = (tenant: Tenant): boolean => {
@@ -260,10 +260,17 @@ const TenantsPage: React.FC = () => {
       if (response && (response.tenant || response.message?.includes("successfully"))) {
         toast.success('✅ Tenant terminated successfully!');
         // Update the tenant status in our local state
-        setAllTenants(prev => 
-          prev.map(t => 
-            t.id === terminatingTenant.id 
-              ? { ...t, termination_date: terminationFormData.terminationDate, status: 'terminated' } 
+        setAllTenants(prev =>
+          prev.map(t =>
+            t.id === terminatingTenant.id
+              ? {
+                  ...t,
+                  termination_date: terminationFormData.terminationDate,
+                  status: 'terminated',
+                  is_active: 0,
+                  termination_reason: terminationFormData.terminationReason,
+                  termination_notes: terminationFormData.notes
+                }
               : t
           )
         );
@@ -360,36 +367,29 @@ const TenantsPage: React.FC = () => {
     setShowTenantModal(true);
   };
 
-  // Filter tenants based on activeTab and searchTerm
-  // In TenantsPage.tsx - Main fix
-const getFilteredTenants = () => {
-  return allTenants.filter(tenant => {
-    // Check if tenant matches search criteria
-    const matchesSearch = 
-      tenant.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tenant.tenant_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tenant.phone?.includes(searchTerm) ||
-      tenant.city?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    // For active tab, only show tenants without termination date
-    if (activeTab === 'active') {
-      return matchesSearch && !tenant.termination_date && tenant.status !== 'terminated';
-    } 
-    // For terminated tab, only show tenants with termination date
-    else {
-      return matchesSearch && (tenant.termination_date || tenant.status === 'terminated');
-    }
-  });
-};
+  const getFilteredTenants = () => {
+    return allTenants.filter(tenant => {
+      const matchesSearch =
+        tenant.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tenant.tenant_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tenant.phone?.includes(searchTerm) ||
+        tenant.city?.toLowerCase().includes(searchTerm.toLowerCase());
 
-// And ensure proper counting:
-const activeCount = allTenants.filter(tenant => 
-  !tenant.termination_date && tenant.status !== 'terminated'
-).length;
+      if (activeTab === 'active') {
+        return matchesSearch && tenant.is_active !== 0 && !tenant.termination_date && tenant.status !== 'terminated';
+      } else {
+        return matchesSearch && (tenant.is_active === 0 || tenant.termination_date || tenant.status === 'terminated');
+      }
+    });
+  };
 
-const terminatedCount = allTenants.filter(tenant => 
-  tenant.termination_date || tenant.status === 'terminated'
-).length;
+  const activeCount = allTenants.filter(tenant =>
+    tenant.is_active !== 0 && !tenant.termination_date && tenant.status !== 'terminated'
+  ).length;
+
+  const terminatedCount = allTenants.filter(tenant =>
+    tenant.is_active === 0 || tenant.termination_date || tenant.status === 'terminated'
+  ).length;
 
   if (loading) {
     return (

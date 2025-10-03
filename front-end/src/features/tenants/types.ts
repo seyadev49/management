@@ -30,13 +30,15 @@ export interface Tenant {
   termination_date?: string;
   termination_reason?: string;
   termination_notes?: string;
- termination_details?: {
-   reason: string;
-   deposit_action: string;
-   deposit_returned: number;
-   deductions: Array<{ description: string; amount: number }>;
-   notes: string;
- };
+  status?: string;
+  is_active?: number;
+  termination_details?: {
+    reason: string;
+    deposit_action: string;
+    deposit_returned: number;
+    deductions: Array<{ description: string; amount: number }>;
+    notes: string;
+  };
 }
 export interface ContractHistory {
  id: number;

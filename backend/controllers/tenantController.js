@@ -91,25 +91,25 @@ const createTenant = async (req, res) => {
 };
 const getTenants = async (req, res) => {
   try {
-    // Fetch tenants with essential contract fields
+    // Fetch ALL tenants (both active and terminated)
     const [tenants] = await db.execute(
-      `SELECT t.*, 
+      `SELECT t.*,
               rc.id as contract_id,
               p.name as property_name,
               pu.unit_number,
               rc.monthly_rent,
               rc.contract_start_date,
               rc.contract_end_date,
-              rc.rent_start_date,      -- ✅ Critical for payment cycle
-              rc.payment_term,         -- ✅ Critical (1=monthly, 3=quarterly, etc.)
+              rc.rent_start_date,
+              rc.payment_term,
               rc.status as contract_status,
               DATEDIFF(rc.contract_end_date, CURDATE()) as days_until_expiry
        FROM tenants t
-       LEFT JOIN rental_contracts rc ON t.id = rc.tenant_id AND rc.status = 'active'
+       LEFT JOIN rental_contracts rc ON t.id = rc.tenant_id AND (rc.status = 'active' OR rc.status = 'terminated')
        LEFT JOIN properties p ON rc.property_id = p.id
        LEFT JOIN property_units pu ON rc.unit_id = pu.id
-       WHERE t.organization_id = ? AND t.is_active = TRUE
-       ORDER BY t.created_at DESC`,
+       WHERE t.organization_id = ?
+       ORDER BY t.is_active DESC, t.created_at DESC`,
       [req.user.organization_id]
     );
 
